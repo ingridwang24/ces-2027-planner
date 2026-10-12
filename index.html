@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Interactive, color-coded CES 2027 timetable with venue map, walking distances, conflict checks and a pass recommender.">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>CES 2027 Session Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: control-room tool — filter rail on top, timetable grid (time × venue) as the hero, map + pass advisor below */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#14181f; --muted:#5a6573; --line:#d9dee5; --accent:#0b5cad;
+  --ok:#1f7a3f; --warn:#b45309; --bad:#b91c1c; --road:#c9d0d9; --strip:#e2b04a;
+  --tl:40%; --t-keynote:#374151; --t-vehicle:#0e7490; --t-hollywood:#b4236b; --t-streaming:#6d3fd1;
+  --t-retail:#c2410c; --t-robotics:#4d7c0f; --t-wearables:#a16207; --t-ai:#1d4ed8; --t-enterprise:#7c4a2d;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1318; --surface:#171c23; --ink:#e8ecf1; --muted:#9aa5b3; --line:#2a323d; --accent:#6aa8ef;
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --road:#2c3540; --strip:#b8892e;
+  --tl:66%; --t-keynote:#9ca3af; --t-vehicle:#22b8d6; --t-hollywood:#ec5fa3; --t-streaming:#a78bfa;
+  --t-retail:#fb8a4c; --t-robotics:#94c34a; --t-wearables:#e0b23a; --t-ai:#6b9cff; --t-enterprise:#c99470;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --surface:#171c23; --ink:#e8ecf1; --muted:#9aa5b3; --line:#2a323d; --accent:#6aa8ef;
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --road:#2c3540; --strip:#b8892e;
+  --tl:66%; --t-keynote:#9ca3af; --t-vehicle:#22b8d6; --t-hollywood:#ec5fa3; --t-streaming:#a78bfa;
+  --t-retail:#fb8a4c; --t-robotics:#94c34a; --t-wearables:#e0b23a; --t-ai:#6b9cff; --t-enterprise:#c99470;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:22px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(1.7rem,4vw,2.5rem);font-weight:800}
+h2{font-size:1.25rem;font-weight:700}
+h3{font-size:1rem;font-weight:700}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+header.top{display:grid;gap:10px}
+.facts{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:.9rem}
+.facts b{font-family:var(--f-mono);font-weight:600}
+.notice{border:1px solid var(--line);border-left:4px solid var(--warn);background:var(--surface);padding:10px 14px;border-radius:6px;font-size:.9rem;max-width:80ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{--c:var(--muted);font:inherit;font-size:.85rem;display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1.5px solid var(--c);background:transparent;color:var(--ink);cursor:pointer}
+.chip .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.chip[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 20%,var(--surface))}
+.chip[aria-pressed="false"]{opacity:.55;border-style:dashed}
+.chip .n{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:.85rem;padding:6px 12px;background:transparent;color:var(--ink);border:0;border-right:1px solid var(--line);cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+select,input[type=search]{font:inherit;font-size:.85rem;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+button:focus-visible,select:focus-visible,input:focus-visible,.blk:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lbl{font-size:.78rem;color:var(--muted);font-family:var(--f-mono);text-transform:uppercase;letter-spacing:.08em}
+
+/* timetable */
+.ttwrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.tt{display:grid;min-width:1240px;position:relative}
+.tt .hd{position:sticky;top:0;background:var(--surface);z-index:2;border-bottom:1px solid var(--line);padding:8px 6px;font-size:.8rem;font-weight:700;font-family:var(--f-display)}
+.tt .hd small{display:block;font-family:var(--f-mono);font-weight:400;color:var(--muted);font-size:.68rem}
+.col{position:relative;border-left:1px solid var(--line)}
+.times{position:relative}
+.times span{position:absolute;right:6px;font-family:var(--f-mono);font-size:.7rem;color:var(--muted);transform:translateY(-50%)}
+.gridline{position:absolute;left:0;right:0;border-top:1px dashed var(--line)}
+.blk{--c:var(--muted);position:absolute;border-radius:6px;padding:4px 6px;font-size:.74rem;line-height:1.25;overflow:hidden;cursor:pointer;
+  background:color-mix(in srgb,var(--c) 16%,var(--surface));border:1px solid color-mix(in srgb,var(--c) 45%,var(--surface));border-left:4px solid var(--c);color:var(--ink);text-align:left;font-family:var(--f-body)}
+.blk:hover{background:color-mix(in srgb,var(--c) 28%,var(--surface))}
+.blk .t{font-family:var(--f-mono);font-size:.66rem;color:var(--muted)}
+.blk.proj{border-style:dashed;border-left-style:solid}
+.blk.mine{box-shadow:0 0 0 2px var(--ink)}
+.blk .star{position:absolute;top:2px;right:4px;font-size:.8rem}
+
+/* list */
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:820px;font-size:.86rem}
+th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);cursor:pointer;white-space:nowrap}
+tbody tr:hover{background:color-mix(in srgb,var(--ink) 4%,var(--surface))}
+.tag{--c:var(--muted);display:inline-flex;align-items:center;gap:6px;font-size:.78rem;white-space:nowrap}
+.tag::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--c)}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:.68rem;padding:1px 7px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.pill.conf{border-color:var(--ok);color:var(--ok)}
+.pill.proj{border-color:var(--warn);color:var(--warn)}
+.starbtn{font:inherit;background:none;border:0;cursor:pointer;font-size:1.1rem;color:var(--muted);padding:0 4px}
+.starbtn[aria-pressed="true"]{color:var(--warn)}
+
+/* detail */
+.detail{border-left:4px solid var(--c,var(--line))}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:.88rem}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+
+/* lower */
+.two{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px}
+@media (max-width:900px){.two{grid-template-columns:1fr}}
+svg text{font-family:var(--f-body)}
+.map svg{width:100%;height:auto;display:block}
+.pin{cursor:pointer}
+.pin:focus-visible circle{stroke:var(--accent);stroke-width:3}
+.planlist{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.planlist li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;border-left:4px solid var(--c)}
+.flag{font-size:.78rem;font-weight:700}
+.flag.bad{color:var(--bad)} .flag.warn{color:var(--warn)}
+.rec{border:2px solid var(--ink);border-radius:10px;padding:14px;display:grid;gap:6px}
+.rec .big{font-family:var(--f-display);font-size:1.4rem;font-weight:800}
+.prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.price{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:4px}
+.price .amt{font-family:var(--f-mono);font-size:1.15rem;font-weight:600}
+.btn{font:inherit;font-size:.85rem;padding:7px 14px;border-radius:8px;border:1px solid var(--ink);background:var(--ink);color:var(--surface);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink)}
+.dm table{min-width:760px}
+.dm td,.dm th{text-align:center;font-size:.8rem;padding:7px 6px;cursor:default}
+.dm th.rh{text-align:left;white-space:nowrap;color:var(--ink);font-family:var(--f-body);text-transform:none;letter-spacing:0;font-size:.82rem}
+.dm td .mi{font-family:var(--f-mono);font-weight:600;display:block}
+.dm td .w{color:var(--muted);font-size:.74rem;display:block}
+.dm td.self{background:color-mix(in srgb,var(--ink) 6%,var(--surface))}
+.dm td.near{background:color-mix(in srgb,var(--ok) 14%,var(--surface))}
+.dm td.mid{background:color-mix(in srgb,var(--warn) 12%,var(--surface))}
+.dm td.far{background:color-mix(in srgb,var(--bad) 10%,var(--surface))}
+.dm .hl{outline:2px solid var(--accent);outline-offset:-2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--muted)}
+footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
+@media (prefers-reduced-motion:no-preference){.blk{transition:background .15s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Las Vegas · Jan 6–9, 2027 · personal planner</div>
+    <h1>CES 2027 Session Planner</h1>
+    <div class="facts">
+      <span>Show days <b>Wed Jan 6 – Sat Jan 9</b></span>
+      <span>Campuses <b>LVCC · Venetian · C Space · Fontainebleau</b></span>
+      <span>Early pricing ends <b>Nov 30, 2026</b></span>
+    </div>
+    <p class="notice"><strong>Status as of Oct 12, 2026:</strong> CTA has not yet published the session-by-session 2027 agenda. Sessions tagged <span class="pill conf">Confirmed</span> come from CES 2027 announcements. Sessions tagged <span class="pill proj">Projected</span> are placeholder slots for each theme. Their days, rooms and topics follow the CES 2026 program and will change. Star what you want now, then check each one against the official agenda at ces.tech when it goes live.</p>
+  </header>
+
+  <section class="panel" aria-label="Filters">
+    <div id="themeChips" style="display:grid;gap:8px"></div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <div class="seg" id="viewSeg">
+        <button data-v="grid" aria-pressed="true">Timetable</button>
+        <button data-v="list" aria-pressed="false">Table</button>
+      </div>
+      <span class="lbl" style="margin-left:8px">Day</span>
+      <div class="seg" id="daySeg"></div>
+      <label class="lbl" for="passSel" style="margin-left:8px">Pass</label>
+      <select id="passSel">
+        <option value="all">Any access</option>
+        <option value="Standard">Included in Standard</option>
+        <option value="Premium">Premium only</option>
+        <option value="Add-on">Add-on track</option>
+        <option value="Tour">Paid tour</option>
+      </select>
+      <label class="lbl" for="statusSel">Status</label>
+      <select id="statusSel">
+        <option value="all">Confirmed + projected</option>
+        <option value="Confirmed">Confirmed only</option>
+      </select>
+      <input type="search" id="q" placeholder="Search sessions…" aria-label="Search sessions">
+      <button class="chip" id="mineOnly" aria-pressed="false" style="--c:var(--warn)">★ My plan only</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Schedule">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="schedTitle">Timetable</h2>
+      <div class="legend"><span>Solid border = confirmed</span><span>Dashed border = projected</span><span>Outlined = starred</span><span>Click a block for details</span></div>
+    </div>
+    <div id="gridView"></div>
+    <div id="listView" hidden></div>
+    <div id="detail" class="panel detail" hidden></div>
+  </section>
+
+  <div class="two">
+    <section class="panel map" aria-label="Venue map">
+      <div><div class="eyebrow">Where it happens</div><h2>Venue map</h2></div>
+      <p class="muted" style="margin:0;font-size:.88rem">Not to scale. Click a venue to see its themes, sessions, address and a Google Maps link.</p>
+      <div id="mapSvg"></div>
+      <div id="venueCard"></div>
+    </section>
+
+    <section class="panel" aria-label="My plan">
+      <div><div class="eyebrow">Your schedule</div><h2>My plan <span class="mono muted" id="planCount"></span></h2></div>
+      <ul class="planlist" id="planList"></ul>
+      <div class="row">
+        <button class="btn ghost" id="copyPlan">Copy plan as text</button>
+        <button class="btn ghost" id="clearPlan">Clear plan</button>
+        <span class="muted" id="copyMsg" style="font-size:.82rem"></span>
+      </div>
+      <div id="clearConfirm" hidden class="row"><span>Remove all starred sessions?</span><button class="btn" id="clearYes">Yes, clear</button><button class="btn ghost" id="clearNo">Keep</button></div>
+      <div id="rec"></div>
+    </section>
+  </div>
+
+  <section class="panel dm" aria-label="Distances between venues">
+    <div><div class="eyebrow">Getting between venues</div><h2>Distance &amp; walking times</h2></div>
+    <p class="muted" style="margin:0;font-size:.88rem;max-width:80ch">Each cell shows walking distance, walking time at a normal pace, and a typical show-week ride time (shuttle, monorail or rideshare including the wait). Walks on the Strip route you through casinos and over pedestrian bridges, so add 20–30% when crowds are heavy. Green = easy walk, amber = walkable but plan for it, red = take a ride. Click a venue on the map to highlight its row.</p>
+    <div class="tbl" id="distMatrix"></div>
+  </section>
+
+  <section class="panel" aria-label="Passes">
+    <div><div class="eyebrow">Official CES 2027 pricing</div><h2>Passes</h2></div>
+    <div class="prices">
+      <div class="price"><h3>Standard Pass</h3><div class="amt">$149 <span class="muted" style="font-size:.8rem">to Nov 30</span></div><div class="mono muted">$349 from Dec 1</div><div style="font-size:.86rem">Exhibit floor, keynotes, Great Minds sessions, select conference sessions.</div></div>
+      <div class="price"><h3>Premium Pass</h3><div class="amt">$1,450 <span class="muted" style="font-size:.8rem">to Nov 30</span></div><div class="mono muted">$1,750 from Dec 1</div><div style="font-size:.86rem">Everything in Standard plus all conference sessions and tracks (350+ sessions), partner programming and a pre-show planning webinar.</div></div>
+      <div class="price"><h3>Customize</h3><div class="amt">Standard + add-ons</div><div class="mono muted">priced at checkout</div><div style="font-size:.86rem">Add individual tracks such as Digital Hollywood: AI &amp; Super Creativity or Connect2Car, plus show floor tours (tours are extra even with Premium; price not yet published). CES says Premium is the better deal if you want 3 or more tracks.</div></div>
+    </div>
+    <p class="muted" style="margin:0;font-size:.85rem">Buy only through ces.tech (Maritz is the only official registration vendor). Refunds less a $50 fee until Dec 9, 2026. CES is trade-only, 18+.</p>
+  </section>
+
+  <footer>
+    <div>Sources: ces.tech registration page; CES 2027 announcements on audioXpress and Travel And Tour World; CES 2026 program listings for projected rooms. Travel times between campuses are rough CES-week estimates.</div>
+  </footer>
+</div>
+
+<script>
+const THEMES = {
+  keynote:{name:"Keynotes",v:"--t-keynote"},
+  vehicle:{name:"Vehicle Tech & Advanced Mobility",v:"--t-vehicle"},
+  hollywood:{name:"Digital Hollywood: AI & Super Creativity",v:"--t-hollywood"},
+  streaming:{name:"Home Entertainment & Streaming",v:"--t-streaming"},
+  retail:{name:"Retail",v:"--t-retail"},
+  robotics:{name:"Robotics",v:"--t-robotics"},
+  wearables:{name:"Wearables",v:"--t-wearables"},
+  ai:{name:"Artificial Intelligence",v:"--t-ai"},
+  enterprise:{name:"Enterprise Innovation",v:"--t-enterprise"},
+  health:{name:"Health & Digital Health",h:350},
+  womens:{name:"Women's Health",h:320},
+  accessibility:{name:"Accessibility & AgeTech",h:200},
+  fitness:{name:"Fitness",h:150},
+  food:{name:"Food Tech",h:95},
+  smarthome:{name:"Smart Home",h:28},
+  lifestyle:{name:"Lifestyle",h:300},
+  sports:{name:"Sports",h:130},
+  startups:{name:"Startups & Investing",h:45},
+  gaming:{name:"Gaming & Esports",h:270},
+  audio:{name:"Audio & Video",h:240},
+  xr:{name:"XR & Spatial Computing",h:180},
+  marketing:{name:"Marketing & Advertising",h:335},
+  fintech:{name:"Fintech",h:165},
+  wireless:{name:"Next G & Wireless",h:215},
+  smartcities:{name:"Smart Communities",h:115},
+  sustainability:{name:"Sustainability & Energy",h:75},
+  manufacturing:{name:"Manufacturing",h:20},
+  cybersecurity:{name:"Cybersecurity",h:0},
+  quantum:{name:"Quantum",h:255},
+  space:{name:"Space Tech",h:225},
+  policy:{name:"Innovation Policy & Trade",h:60}
+};
+const MY_THEMES=["keynote","vehicle","hollywood","streaming","retail","robotics","wearables","ai","enterprise"];
+const VENUES = {
+  "lvcc-west":{name:"LVCC West Hall",campus:"LVCC",sub:"Mobility",addr:"3150 Paradise Rd, Las Vegas, NV 89109",q:"Las Vegas Convention Center West Hall"},
+  "lvcc-north":{name:"LVCC North Hall",campus:"LVCC",sub:"AI, IoT, enterprise",addr:"3150 Paradise Rd, Las Vegas, NV 89109",q:"Las Vegas Convention Center North Hall"},
+  "venetian":{name:"Venetian Expo & Palazzo",campus:"Venetian",sub:"Keynotes, health, Eureka Park",addr:"201 Sands Ave, Las Vegas, NV 89169",q:"Venetian Expo Las Vegas"},
+  "sphere":{name:"Sphere",campus:"Venetian",sub:"Lenovo Tech World",addr:"255 Sands Ave, Las Vegas, NV 89169",q:"Sphere Las Vegas"},
+  "aria":{name:"ARIA · C Space",campus:"C Space",sub:"Media, marketing, content",addr:"3730 S Las Vegas Blvd, Las Vegas, NV 89158",q:"ARIA Resort Las Vegas"},
+  "lvcc-central":{name:"LVCC Central Hall",campus:"LVCC",sub:"Big brands, TV, gaming, XR",addr:"3150 Paradise Rd, Las Vegas, NV 89109",q:"Las Vegas Convention Center Central Hall"},
+  "venetian-conf":{name:"Venetian conference level",campus:"Venetian",sub:"Track rooms (health, home, startups)",addr:"201 Sands Ave, Las Vegas, NV 89169",q:"Venetian Expo Las Vegas"},
+  "fontainebleau":{name:"Fontainebleau",campus:"Fontainebleau",sub:"CES Foundry",addr:"2777 S Las Vegas Blvd, Las Vegas, NV 89109",q:"Fontainebleau Las Vegas"}
+};
+const VENUE_ORDER = ["lvcc-west","lvcc-north","lvcc-central","venetian","venetian-conf","sphere","aria","fontainebleau"];
+const DAYS = {6:"Wed Jan 6",7:"Thu Jan 7",8:"Fri Jan 8",9:"Sat Jan 9"};
+
+// access: Standard | Premium | Add-on | Verify
+const S = [
+ // ---- Confirmed 2027 ----
+ {d:6,s:"08:30",e:"09:15",th:"keynote",t:"CTA State of the Industry Address",v:"venetian",room:"Palazzo Ballroom",acc:"Standard",st:"Confirmed",note:"Opens the show. Arrive early; seating fills."},
+ {d:6,s:"09:15",e:"10:00",th:"vehicle",t:"Stellantis keynote · CEO Antonio Filosa",v:"venetian",room:"Palazzo Ballroom",acc:"Standard",st:"Confirmed",note:"Follows the CTA address (exact start TBC). Connected vehicles, software, human-centered mobility; tied to the Stellantis West Hall exhibit."},
+ {d:6,s:"13:00",e:"13:45",th:"vehicle",t:"Waymo keynote · Co-CEO Tekedra Mawakana",v:"venetian",room:"Palazzo Ballroom",acc:"Standard",st:"Confirmed",note:"International expansion, fleet evolution and safety."},
+ {d:6,s:"17:00",e:"18:30",th:"ai",t:"Lenovo Tech World · Chairman & CEO Yuanqing Yang",v:"sphere",room:"Sphere",acc:"Standard",st:"Confirmed",note:"Hybrid AI strategy; Lenovo AI startups in the atrium. Capacity is limited."},
+ {d:6,s:"10:00",e:"17:00",th:"enterprise",t:"CES Foundry · Day 1 (agentic AI & quantum)",v:"fontainebleau",room:"Fontainebleau",acc:"Verify",st:"Confirmed",note:"3-day program Jan 6–8. Pass access not yet stated; confirm at registration. Daily hours projected."},
+ {d:7,s:"10:00",e:"17:00",th:"enterprise",t:"CES Foundry · Day 2",v:"fontainebleau",room:"Fontainebleau",acc:"Verify",st:"Confirmed",note:"Talks, demos and networking on agentic AI products and platforms. Daily hours projected."},
+ {d:8,s:"10:00",e:"16:00",th:"enterprise",t:"CES Foundry · Day 3",v:"fontainebleau",room:"Fontainebleau",acc:"Verify",st:"Confirmed",note:"Final day. Daily hours projected."},
+
+ // ---- Vehicle Tech & Advanced Mobility (LVCC West Hall) ----
+ {d:6,s:"14:30",e:"15:30",th:"vehicle",t:"Software-defined vehicle architectures",v:"lvcc-west",room:"W2xx (TBA)",acc:"Premium",st:"Projected",note:"Slot for the SDV conversation; Waymo keynote ends 13:45 at the Venetian, so allow the transfer."},
+ {d:7,s:"09:30",e:"12:00",th:"vehicle",t:"Connect2Car: Connected Vehicle Intelligence",v:"lvcc-west",room:"TBA",acc:"Add-on",st:"Projected",note:"Named 2027 add-on track (confirmed). Schedule and room projected."},
+ {d:7,s:"13:00",e:"13:45",th:"vehicle",t:"Great Minds · Mobility & AI on the road",v:"lvcc-west",room:"Mobility Stage",acc:"Standard",st:"Projected",note:"Great Minds sessions are included in Standard."},
+ {d:7,s:"16:00",e:"17:00",th:"vehicle",t:"Infotainment & the digital cockpit",v:"lvcc-west",room:"W232 (2026 room)",acc:"Premium",st:"Projected",note:"In 2026 the SDV session 'Driving Tomorrow' ran here on Jan 7 at 4 PM."},
+ {d:8,s:"10:00",e:"11:00",th:"vehicle",t:"AI perception & autonomous systems",v:"lvcc-west",room:"W2xx (TBA)",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"10:00",e:"12:00",th:"vehicle",t:"Tour · AI on the Move",v:"lvcc-west",room:"Tour meets at West Hall",acc:"Tour",st:"Projected",note:"Official mobility show-floor tour (confirmed); time slot projected."},
+ {d:8,s:"14:00",e:"15:00",th:"vehicle",t:"Electrification, charging & marine/industrial mobility",v:"lvcc-west",room:"W2xx (TBA)",acc:"Premium",st:"Projected",note:""},
+
+ // ---- Digital Hollywood ----
+ {d:6,s:"10:30",e:"12:30",th:"hollywood",t:"Digital Hollywood: AI & Super Creativity · Opening block",v:"aria",room:"TBA",acc:"Add-on",st:"Projected",note:"Named 2027 add-on track (confirmed). Venue and schedule projected."},
+ {d:6,s:"14:00",e:"17:00",th:"hollywood",t:"Digital Hollywood · Generative AI in film, TV & music",v:"aria",room:"TBA",acc:"Add-on",st:"Projected",note:""},
+ {d:7,s:"10:00",e:"12:00",th:"hollywood",t:"Digital Hollywood · Creators, IP & AI rights",v:"aria",room:"TBA",acc:"Add-on",st:"Projected",note:""},
+ {d:7,s:"14:00",e:"16:30",th:"hollywood",t:"Digital Hollywood · Virtual production & XR storytelling",v:"aria",room:"TBA",acc:"Add-on",st:"Projected",note:""},
+
+ // ---- Home Entertainment & Streaming ----
+ {d:6,s:"11:00",e:"12:00",th:"streaming",t:"The streaming bundle, FAST & ad tiers",v:"aria",room:"C Space stage",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"11:00",e:"12:00",th:"streaming",t:"Creator economy & the living-room screen",v:"aria",room:"C Space stage",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"10:30",e:"11:30",th:"streaming",t:"Next-gen TV, audio & immersive home entertainment",v:"lvcc-central",room:"TBA",acc:"Premium",st:"Projected",note:"Central Hall hosts the big TV and audio brands, so this may land on the LVCC campus."},
+ {d:9,s:"10:30",e:"11:30",th:"streaming",t:"Gaming meets streaming",v:"aria",room:"TBA",acc:"Premium",st:"Projected",note:""},
+
+ // ---- Retail ----
+ {d:6,s:"10:00",e:"11:00",th:"retail",t:"The next era of retail: ecosystems & personalization",v:"aria",room:"Mariposa 5 (2026 room)",acc:"Premium",st:"Projected",note:"In 2026 a retail session with this theme ran Jan 6, 10 AM, ARIA Mariposa 5."},
+ {d:7,s:"14:00",e:"15:00",th:"retail",t:"Retail media networks & measurement",v:"aria",room:"Mariposa (TBA)",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"11:00",e:"12:00",th:"retail",t:"Agentic commerce: AI shoppers & checkout",v:"aria",room:"Mariposa (TBA)",acc:"Premium",st:"Projected",note:""},
+
+ // ---- Robotics ----
+ {d:7,s:"10:00",e:"11:00",th:"robotics",t:"Humanoids at work and at home",v:"lvcc-west",room:"W219 (2026 room)",acc:"Premium",st:"Projected",note:"Mirrors the 2026 session 'Not Quite Human', Jan 7, 10 AM, W219."},
+ {d:7,s:"13:00",e:"14:30",th:"robotics",t:"Tour · Next Wave of Physical AI",v:"lvcc-north",room:"North Hall (a Venetian version also runs)",acc:"Tour",st:"Projected",note:"Official 90-minute guided show-floor tour by StoryTech: robotics, humanoids, sensors, edge computing, autonomous systems. Includes a 15-min briefing, headsets and an insight guide. Time slot projected; book via CEStours@cta.tech."},
+ {d:8,s:"13:00",e:"14:00",th:"robotics",t:"Physical AI: robots that learn on the job",v:"lvcc-west",room:"W2xx (TBA)",acc:"Premium",st:"Projected",note:""},
+ {d:9,s:"10:00",e:"11:00",th:"robotics",t:"Service & home robots: what ships in 2027",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:""},
+
+ // ---- Wearables ----
+ {d:6,s:"15:00",e:"16:00",th:"wearables",t:"Smart glasses & the post-phone interface",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:"Wearables became its own track in 2026."},
+ {d:7,s:"11:00",e:"12:00",th:"wearables",t:"Health wearables: from tracking to diagnosis",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:"Venetian hosts digital health exhibits."},
+ {d:8,s:"15:00",e:"16:00",th:"wearables",t:"Rings, patches & always-on sensors",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:""},
+
+ // ---- AI ----
+ {d:6,s:"11:00",e:"11:45",th:"ai",t:"Great Minds · AI in everyday products",v:"venetian",room:"TBA",acc:"Standard",st:"Projected",note:"Great Minds sessions are included in Standard."},
+ {d:6,s:"15:30",e:"16:30",th:"ai",t:"Agentic AI: from assistants to agents",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"09:30",e:"10:30",th:"ai",t:"On-device & edge AI",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"10:00",e:"11:00",th:"ai",t:"AI policy, trust & governance",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:9,s:"11:30",e:"12:15",th:"ai",t:"Great Minds · What CES 2027 told us about AI",v:"venetian",room:"TBA",acc:"Standard",st:"Projected",note:""},
+
+ // ---- Enterprise ----
+ {d:6,s:"13:30",e:"14:30",th:"enterprise",t:"Enterprise AI at scale: ROI and operations",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:"North Hall hosts enterprise, AI and smart-city exhibits."},
+ {d:7,s:"15:00",e:"16:00",th:"enterprise",t:"Intelligent infrastructure & smart cities",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"11:30",e:"12:30",th:"quantum",t:"Quantum Means Business: A Quantum World Congress Program · Day 2",v:"venetian",room:"TBA",acc:"Add-on",st:"Projected",note:"Named 2027 add-on track (confirmed). Venue and time projected."},
+
+ // ---- Other CES 2027 themes ----
+ {d:7,s:"10:30",e:"12:00",th:"quantum",t:"Quantum Means Business: A Quantum World Congress Program · Day 1",v:"venetian-conf",room:"TBA",acc:"Add-on",st:"Projected",note:"Named 2027 add-on track (confirmed). Venue and time projected."},
+ {d:7,s:"10:00",e:"13:00",th:"food",t:"The Spoon: Food Tech Summit · Morning",v:"venetian-conf",room:"TBA",acc:"Add-on",st:"Projected",note:"Named 2027 add-on track (confirmed). Venue and time projected."},
+ {d:7,s:"14:00",e:"16:00",th:"food",t:"The Spoon: Food Tech Summit · Afternoon",v:"venetian-conf",room:"TBA",acc:"Add-on",st:"Projected",note:""},
+ {d:8,s:"09:30",e:"12:30",th:"space",t:"Novaspace: Exploring Tomorrow's Space Technologies",v:"venetian-conf",room:"TBA",acc:"Add-on",st:"Projected",note:"Named 2027 add-on track (confirmed). Venue and time projected."},
+ {d:6,s:"10:00",e:"11:00",th:"health",t:"AI in digital health: wellness to clinical",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:"CES Health Hub area is at the Venetian."},
+ {d:8,s:"13:00",e:"14:00",th:"health",t:"Remote care & hospital-at-home",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"13:30",e:"14:30",th:"womens",t:"Women's health: products, data & investment",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:"Women's health became its own track in 2026."},
+ {d:9,s:"11:00",e:"12:30",th:"womens",t:"Tour · The Business of Women's Health",v:"venetian",room:"Tour (Venetian)",acc:"Tour",st:"Projected",note:"Official StoryTech tour (confirmed, 1.5 h). Time projected. Paid separately."},
+ {d:7,s:"09:30",e:"10:30",th:"accessibility",t:"AgeTech & accessible design",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:9,s:"10:00",e:"11:00",th:"accessibility",t:"Innovation for All: inclusive products",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"09:30",e:"10:30",th:"fitness",t:"Connected fitness & recovery tech",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:6,s:"13:00",e:"14:00",th:"smarthome",t:"Matter, AI & the predictive home",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"13:00",e:"14:30",th:"smarthome",t:"Tour · The Predictive Home & Body",v:"venetian",room:"Tour (Venetian Expo)",acc:"Tour",st:"Projected",note:"Official StoryTech tour (confirmed, 1.5 h): food tech, health signals, wellness. Time projected. Paid separately."},
+ {d:8,s:"15:00",e:"16:00",th:"lifestyle",t:"Lifestyle tech: beauty, pets & family",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:9,s:"14:00",e:"15:00",th:"sports",t:"Sports tech: athletes, venues & fans",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:6,s:"12:00",e:"12:45",th:"startups",t:"Eureka Park pitch stage",v:"venetian",room:"Eureka Park",acc:"Standard",st:"Projected",note:"Eureka Park (startups) is at Venetian Expo."},
+ {d:8,s:"16:00",e:"17:00",th:"startups",t:"Investing: what VCs will fund in 2027",v:"venetian-conf",room:"TBA",acc:"Premium",st:"Projected",note:"CES lists a dedicated investing track."},
+ {d:7,s:"13:00",e:"14:00",th:"gaming",t:"Gaming & esports: cloud, AI characters, new hardware",v:"lvcc-central",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:9,s:"13:00",e:"14:00",th:"gaming",t:"Esports & creator-led gaming",v:"lvcc-central",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:6,s:"14:00",e:"15:00",th:"audio",t:"Audio & video: Auracast, Bluetooth HDT & next-gen displays",v:"lvcc-central",room:"TBA",acc:"Premium",st:"Projected",note:"Auracast and Bluetooth HDT are flagged audio themes for 2027."},
+ {d:7,s:"15:00",e:"16:30",th:"streaming",t:"Tour · The Future of Entertainment and Content",v:"lvcc-central",room:"Tour (Central Hall)",acc:"Tour",st:"Projected",note:"Official StoryTech tour (confirmed, 1.5 h): media, gaming, display tech. Time projected. Paid separately."},
+ {d:6,s:"16:00",e:"17:00",th:"xr",t:"XR & spatial computing: headsets, glasses & content",v:"lvcc-central",room:"TBA",acc:"Premium",st:"Projected",note:"XR and Spatial Computing is a named 2027 conference track."},
+ {d:8,s:"11:00",e:"12:00",th:"xr",t:"Spatial computing at work",v:"lvcc-central",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:6,s:"09:30",e:"10:30",th:"marketing",t:"C Space: brands, AI & the future of marketing",v:"aria",room:"C Space stage",acc:"Premium",st:"Projected",note:"C Space is the hub for advertisers and media."},
+ {d:8,s:"14:00",e:"15:00",th:"marketing",t:"C Space: creators, measurement & ad-supported media",v:"aria",room:"C Space stage",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"15:00",e:"16:00",th:"fintech",t:"Embedded finance & payments in devices",v:"aria",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"11:00",e:"12:00",th:"wireless",t:"Next G & wireless: 6G and satellite-to-device",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"14:30",e:"15:30",th:"smartcities",t:"Smart communities & public infrastructure",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"10:00",e:"11:00",th:"sustainability",t:"Energy future: grid, storage & home electrification",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:8,s:"16:00",e:"17:30",th:"sustainability",t:"Tour · Energy, Reimagined",v:"lvcc-north",room:"Tour (LVCC)",acc:"Tour",st:"Projected",note:"Official StoryTech tour (confirmed, 1.5 h). Time projected. Paid separately."},
+ {d:8,s:"10:00",e:"11:00",th:"manufacturing",t:"AI in manufacturing & supply chains",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:"Manufacturing became its own track in 2026."},
+ {d:7,s:"14:00",e:"15:00",th:"cybersecurity",t:"Securing connected devices & vehicles",v:"lvcc-north",room:"TBA",acc:"Premium",st:"Projected",note:""},
+ {d:7,s:"09:00",e:"10:00",th:"policy",t:"Innovation policy: AI rules, trade & tariffs",v:"venetian",room:"TBA",acc:"Premium",st:"Projected",note:"Trade and tariffs is a listed CES topic."},
+ {d:7,s:"10:00",e:"11:30",th:"retail",t:"Tour · The New Shelf",v:"venetian",room:"Tour (Venetian Expo)",acc:"Tour",st:"Projected",note:"Official StoryTech tour (confirmed, 1.5 h): data, AI and smart products in shopping. Time projected. Paid separately."},
+ {d:8,s:"15:00",e:"16:30",th:"robotics",t:"Tour · Autonomous World",v:"lvcc-north",room:"Tour (North & West Halls)",acc:"Tour",st:"Projected",note:"Official StoryTech tour (confirmed, 1.5 h). Time projected. Paid separately."},
+].map((x,i)=>({...x,id:"s"+i}));
+
+const TRAVEL = {"LVCC|Venetian":25,"C Space|LVCC":45,"C Space|Venetian":35,"Fontainebleau|LVCC":15,"Fontainebleau|Venetian":20,"C Space|Fontainebleau":35};
+const travel=(a,b)=>a===b?10:(TRAVEL[[a,b].sort().join("|")]||40);
+const mins=t=>{const[h,m]=t.split(":").map(Number);return h*60+m};
+const fmt=t=>{let[h,m]=t.split(":").map(Number);const ap=h>=12?"pm":"am";h=h%12||12;return h+(m?":"+String(m).padStart(2,"0"):"")+ap};
+const col=th=>THEMES[th].v?`var(${THEMES[th].v})`:`hsl(${THEMES[th].h} 62% var(--tl))`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const state={
+  themes:new Set(store.get("ces27.themes.v2",Object.keys(THEMES))),
+  view:"grid",day:6,pass:"all",status:"all",q:"",mineOnly:false,
+  mine:new Set(store.get("ces27.mine",[])),
+  sort:{k:"time",dir:1},sel:null,venue:null
+};
+const save=()=>{store.set("ces27.mine",[...state.mine]);store.set("ces27.themes.v2",[...state.themes])};
+
+function filtered(ignoreDay){
+  const q=state.q.toLowerCase();
+  return S.filter(x=>state.themes.has(x.th)
+    &&(ignoreDay||state.view==="list"||x.d===state.day)
+    &&(state.pass==="all"||x.acc===state.pass)
+    &&(state.status==="all"||x.st===state.status)
+    &&(!state.mineOnly||state.mine.has(x.id))
+    &&(!q||(x.t+" "+x.note+" "+VENUES[x.v].name+" "+THEMES[x.th].name).toLowerCase().includes(q)));
+}
+
+function renderChips(){
+  const el=document.getElementById("themeChips");
+  const chip=k=>{const n=S.filter(x=>x.th===k).length;return `<button class="chip" style="--c:${col(k)}" data-th="${k}" aria-pressed="${state.themes.has(k)}"><span class="dot"></span>${esc(THEMES[k].name)} <span class="n">${n}</span></button>`};
+  const others=Object.keys(THEMES).filter(k=>!MY_THEMES.includes(k));
+  el.innerHTML=`<div class="row"><span class="lbl">Show</span><button class="chip" id="allTh" aria-pressed="false">All ${Object.keys(THEMES).length} themes</button><button class="chip" id="myTh" aria-pressed="false">My 9 interests</button><button class="chip" id="noneTh" aria-pressed="false">None</button></div>
+   <div class="row"><span class="lbl">My interests</span>${MY_THEMES.map(chip).join("")}</div>
+   <div class="row"><span class="lbl">Other themes</span>${others.map(chip).join("")}</div>`;
+  el.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{const k=b.dataset.th;state.themes.has(k)?state.themes.delete(k):state.themes.add(k);save();renderAll()});
+  el.querySelector("#allTh").onclick=()=>{state.themes=new Set(Object.keys(THEMES));save();renderAll()};
+  el.querySelector("#myTh").onclick=()=>{state.themes=new Set(MY_THEMES);save();renderAll()};
+  el.querySelector("#noneTh").onclick=()=>{state.themes=new Set();save();renderAll()};
+}
+function renderDaySeg(){
+  const el=document.getElementById("daySeg");
+  el.innerHTML=Object.entries(DAYS).map(([d,n])=>`<button data-d="${d}" aria-pressed="${+d===state.day}" ${state.view==="list"?"disabled":""}>${n}</button>`).join("");
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{state.day=+b.dataset.d;renderAll()});
+  el.style.opacity=state.view==="list"?.45:1;
+}
+
+function renderGrid(){
+  const START=8*60,END=19*60,PX=1.25,H=(END-START)*PX;
+  const items=filtered();
+  const cols=VENUE_ORDER;
+  let html=`<div class="ttwrap"><div class="tt" style="grid-template-columns:56px ${cols.map(v=>v.startsWith("venetian")||v==="lvcc-north"?"minmax(180px,1.4fr)":"minmax(140px,1fr)").join(" ")}">`;
+  html+=`<div class="hd"></div>`+cols.map(v=>`<div class="hd">${esc(VENUES[v].name)}<small>${esc(VENUES[v].sub)}</small></div>`).join("");
+  html+=`<div class="times" style="height:${H}px">`;
+  for(let m=START;m<=END;m+=60)html+=`<span style="top:${(m-START)*PX}px">${fmt(String(m/60).padStart(2,"0")+":00")}</span>`;
+  html+=`</div>`;
+  cols.forEach(v=>{
+    const its=items.filter(x=>x.v===v).sort((a,b)=>mins(a.s)-mins(b.s)||mins(b.e)-mins(a.e));
+    // lane assignment
+    const lanes=[];its.forEach(x=>{let l=lanes.findIndex(end=>end<=mins(x.s));if(l<0){l=lanes.length;lanes.push(0)}lanes[l]=mins(x.e);x._l=l});
+    // per-item lane count = max lanes among overlapping group
+    its.forEach(x=>{x._n=Math.max(...its.filter(y=>mins(y.s)<mins(x.e)&&mins(y.e)>mins(x.s)).map(y=>y._l))+1});
+    html+=`<div class="col" style="height:${H}px">`;
+    for(let m=START;m<=END;m+=60)html+=`<div class="gridline" style="top:${(m-START)*PX}px"></div>`;
+    its.forEach(x=>{
+      const top=(mins(x.s)-START)*PX,h=Math.max(28,(mins(x.e)-mins(x.s))*PX-2);
+      const w=100/x._n;
+      html+=`<button class="blk ${x.st==="Projected"?"proj":""} ${state.mine.has(x.id)?"mine":""}" data-id="${x.id}" style="--c:${col(x.th)};top:${top}px;height:${h}px;left:calc(${w*x._l}% + 3px);width:calc(${w}% - 6px)" aria-label="${esc(x.t)}, ${fmt(x.s)} to ${fmt(x.e)}">
+        ${state.mine.has(x.id)?'<span class="star" aria-hidden="true">★</span>':""}<div class="t">${fmt(x.s)}–${fmt(x.e)}</div><div>${esc(x.t)}</div></button>`;
+    });
+    html+=`</div>`;
+  });
+  html+=`</div></div>`;
+  if(!items.length)html+=`<p class="muted">Nothing matches these filters on ${DAYS[state.day]}. Try another day or turn more themes on.</p>`;
+  const el=document.getElementById("gridView");el.innerHTML=html;
+  el.querySelectorAll(".blk").forEach(b=>b.onclick=()=>showDetail(b.dataset.id));
+}
+
+function renderList(){
+  const items=filtered(true);
+  const k=state.sort.k,dir=state.sort.dir;
+  const key={time:x=>x.d*10000+mins(x.s),theme:x=>THEMES[x.th].name,title:x=>x.t,venue:x=>VENUES[x.v].name,pass:x=>x.acc,status:x=>x.st};
+  items.sort((a,b)=>{const A=key[k](a),B=key[k](b);return (A>B?1:A<B?-1:0)*dir});
+  const th=(id,l)=>`<th data-k="${id}" aria-sort="${k===id?(dir>0?"ascending":"descending"):"none"}">${l}${k===id?(dir>0?" ↑":" ↓"):""}</th>`;
+  let html=`<div class="tbl"><table><thead><tr><th>★</th>${th("time","Day / time")}${th("theme","Theme")}${th("title","Session")}${th("venue","Venue · room")}${th("pass","Pass")}${th("status","Status")}</tr></thead><tbody>`;
+  items.forEach(x=>{
+    html+=`<tr data-id="${x.id}"><td><button class="starbtn" data-star="${x.id}" aria-pressed="${state.mine.has(x.id)}" aria-label="Add to my plan">${state.mine.has(x.id)?"★":"☆"}</button></td>
+    <td class="mono">${DAYS[x.d]}<br>${fmt(x.s)}–${fmt(x.e)}</td>
+    <td><span class="tag" style="--c:${col(x.th)}">${esc(THEMES[x.th].name)}</span></td>
+    <td><a href="#" data-open="${x.id}">${esc(x.t)}</a></td>
+    <td>${esc(VENUES[x.v].name)}<br><span class="muted">${esc(x.room)}</span></td>
+    <td>${accLabel(x.acc)}</td>
+    <td><span class="pill ${x.st==="Confirmed"?"conf":"proj"}">${x.st}</span></td></tr>`});
+  html+=`</tbody></table></div>`;
+  if(!items.length)html+=`<p class="muted">Nothing matches these filters.</p>`;
+  const el=document.getElementById("listView");el.innerHTML=html;
+  el.querySelectorAll("th[data-k]").forEach(h=>h.onclick=()=>{const kk=h.dataset.k;state.sort=state.sort.k===kk?{k:kk,dir:-state.sort.dir}:{k:kk,dir:1};renderList()});
+  el.querySelectorAll("[data-star]").forEach(b=>b.onclick=()=>toggleMine(b.dataset.star));
+  el.querySelectorAll("[data-open]").forEach(a=>a.onclick=e=>{e.preventDefault();showDetail(a.dataset.open)});
+}
+const accLabel=a=>({Standard:"Standard ✓",Premium:"Premium",["Add-on"]:"Add-on / Premium",Tour:"Paid tour (extra)",Verify:"Check at registration"}[a]);
+
+function toggleMine(id){state.mine.has(id)?state.mine.delete(id):state.mine.add(id);save();renderAll();if(state.sel===id)showDetail(id)}
+
+function showDetail(id){
+  state.sel=id;const x=S.find(s=>s.id===id),V=VENUES[x.v];
+  const el=document.getElementById("detail");el.hidden=false;el.style.setProperty("--c",col(x.th));
+  el.innerHTML=`<div class="row" style="justify-content:space-between"><div><span class="tag" style="--c:${col(x.th)}">${esc(THEMES[x.th].name)}</span> <span class="pill ${x.st==="Confirmed"?"conf":"proj"}">${x.st}</span></div>
+   <div class="row"><button class="btn ${state.mine.has(id)?"ghost":""}" id="dStar">${state.mine.has(id)?"Remove from my plan":"★ Add to my plan"}</button><button class="btn ghost" id="dClose">Close</button></div></div>
+   <h3 style="font-size:1.15rem">${esc(x.t)}</h3>
+   <dl class="kv"><dt>When</dt><dd class="mono">${DAYS[x.d]} · ${fmt(x.s)}–${fmt(x.e)} PT</dd>
+   <dt>Where</dt><dd>${esc(V.name)} · ${esc(x.room)} — <a href="#" id="dMap">show on map</a> · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(V.q)}" target="_blank" rel="noopener">Google Maps</a></dd>
+   <dt>Pass</dt><dd>${passText(x.acc)}</dd>
+   ${x.note?`<dt>Notes</dt><dd>${esc(x.note)}</dd>`:""}</dl>`;
+  el.querySelector("#dStar").onclick=()=>toggleMine(id);
+  el.querySelector("#dClose").onclick=()=>{el.hidden=true;state.sel=null};
+  el.querySelector("#dMap").onclick=e=>{e.preventDefault();selectVenue(x.v);document.getElementById("mapSvg").scrollIntoView({behavior:"smooth",block:"center"})};
+  el.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+const passText=a=>({Standard:"Included with Standard ($149 early) and Premium.",Premium:"Premium Pass only ($1,450 early).",["Add-on"]:"Buy as an add-on to Standard, or get it with Premium (partner programming).",Tour:"Paid show-floor tour, bought separately. Not included in Standard or Premium. 2027 price not yet published; ask CEStours@cta.tech or info@story-tech.com.",Verify:"Access not yet published. Confirm when you register."}[a]);
+
+/* ---------- MAP ---------- */
+const PINS={
+  "fontainebleau":{x:300,y:95,side:"r"},
+  "lvcc-west":{x:440,y:150,side:"l"},
+  "lvcc-north":{x:510,y:150,side:"r"},
+  "lvcc-central":{x:510,y:200,side:"r"},
+  "venetian-conf":{x:335,y:360,side:"r"},
+  "venetian":{x:330,y:300,side:"l2"},
+  "sphere":{x:405,y:318,side:"r"},
+  "aria":{x:255,y:565,side:"l"}
+};
+const EXTRA=[{x:215,y:520,n:"Vdara"},{x:268,y:505,n:"Cosmopolitan"},{x:262,y:615,n:"Park MGM"}];
+function renderMap(){
+  const roads=[["Sahara Ave",70],["Desert Inn Rd",235],["Sands Ave / Spring Mtn",330],["Flamingo Rd",440],["Harmon Ave",545],["Tropicana Ave",665]];
+  let s=`<svg viewBox="0 0 660 700" role="img" aria-label="Schematic map of CES 2027 venues along the Las Vegas Strip">`;
+  s+=`<rect x="0" y="0" width="660" height="700" fill="var(--bg)"/>`;
+  roads.forEach(([n,y])=>{s+=`<line x1="40" x2="640" y1="${y}" y2="${y}" stroke="var(--road)" stroke-width="5"/><text x="44" y="${y-6}" font-size="11" fill="var(--muted)">${n}</text>`});
+  s+=`<line x1="490" x2="490" y1="40" y2="690" stroke="var(--road)" stroke-width="5"/><text x="496" y="660" font-size="11" fill="var(--muted)" transform="rotate(-90 496 660)">Paradise Rd</text>`;
+  s+=`<line x1="290" x2="290" y1="40" y2="690" stroke="var(--strip)" stroke-width="9"/><text x="282" y="470" font-size="12" font-weight="700" fill="var(--muted)" transform="rotate(-90 282 470)">LAS VEGAS BLVD (THE STRIP)</text>`;
+  // monorail
+  s+=`<path d="M455 40 L455 120 Q455 190 430 260 L410 440 L380 680" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 5"/>`;
+  s+=`<text x="372" y="420" font-size="11" fill="var(--accent)">Monorail</text><rect x="449" y="120" width="12" height="12" fill="var(--accent)"/><text x="410" y="114" font-size="10" fill="var(--accent)">LVCC stn</text>`;
+  // tech express
+  s+=`<path d="M440 165 Q395 235 340 292" fill="none" stroke="var(--ok)" stroke-width="2.5"/><text x="400" y="248" font-size="11" fill="var(--ok)" font-weight="700">Tech Express</text>`;
+  // LVCC campus outline
+  s+=`<rect x="420" y="128" width="110" height="88" rx="8" fill="none" stroke="var(--line)" stroke-width="2"/><text x="422" y="122" font-size="11" fill="var(--muted)">LVCC campus</text>`;
+  s+=`<rect x="190" y="490" width="100" height="140" rx="8" fill="none" stroke="var(--line)" stroke-width="2"/><text x="150" y="486" font-size="11" fill="var(--muted)">C Space campus</text>`;
+  EXTRA.forEach(p=>{s+=`<circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.5"/><text x="${p.x-8}" y="${p.y+4}" font-size="10" fill="var(--muted)" text-anchor="end">${p.n}</text>`});
+  Object.entries(PINS).forEach(([k,p])=>{
+    const ths=[...new Set(S.filter(x=>x.v===k).map(x=>x.th))];
+    const sel=state.venue===k;
+    s+=`<g class="pin" tabindex="0" role="button" data-v="${k}" aria-label="${esc(VENUES[k].name)}">`;
+    // theme ring segments
+    const r=15;ths.forEach((t,i)=>{const a0=i/ths.length*2*Math.PI-Math.PI/2,a1=(i+1)/ths.length*2*Math.PI-Math.PI/2;
+      const L=(a1-a0)>Math.PI?1:0;
+      s+= ths.length===1?`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="none" stroke="${col(t)}" stroke-width="6"/>`
+        :`<path d="M${p.x+r*Math.cos(a0)} ${p.y+r*Math.sin(a0)} A${r} ${r} 0 ${L} 1 ${p.x+r*Math.cos(a1)} ${p.y+r*Math.sin(a1)}" fill="none" stroke="${col(t)}" stroke-width="6"/>`});
+    s+=`<circle cx="${p.x}" cy="${p.y}" r="${sel?10:9}" fill="${sel?"var(--ink)":"var(--surface)"}" stroke="var(--ink)" stroke-width="1.5"/>`;
+    const lx=p.side==="r"?p.x+22:p.x-22,an=p.side==="r"?"start":"end",ly=p.side==="l2"?p.y-22:p.y+4;
+    s+=`<text x="${p.side==="l2"?p.x+22:lx}" y="${p.side==="l2"?p.y-18:ly}" font-size="12.5" font-weight="700" fill="var(--ink)" text-anchor="${p.side==="l2"?"start":an}">${esc(VENUES[k].name)}</text></g>`;
+  });
+  s+=`</svg>`;
+  const el=document.getElementById("mapSvg");el.innerHTML=s;
+  el.querySelectorAll(".pin").forEach(g=>{g.onclick=()=>selectVenue(g.dataset.v);g.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();selectVenue(g.dataset.v)}}});
+}
+// [miles, walk minutes, ride minutes incl. wait, how to go]
+const DIST={
+ "lvcc-north|lvcc-west":[0.5,10,4,"Walk the outdoor path, or take the free LVCC Loop (Tesla tunnel), about 2 min"],
+ "lvcc-central|lvcc-west":[0.6,12,4,"Free LVCC Loop between West and Central/South Halls"],
+ "lvcc-central|lvcc-north":[0.2,5,null,"Connected indoors"],
+ "lvcc-west|venetian":[1.6,35,20,"Tech Express shuttle from LVCC"],
+ "lvcc-north|venetian":[1.4,30,20,"Tech Express shuttle from LVCC"],
+ "lvcc-central|venetian":[1.3,28,20,"Tech Express shuttle from LVCC"],
+ "lvcc-west|venetian-conf":[1.6,38,22,"Tech Express, then walk inside to the conference level"],
+ "lvcc-north|venetian-conf":[1.4,33,22,"Tech Express, then walk inside"],
+ "lvcc-central|venetian-conf":[1.3,31,22,"Tech Express, then walk inside"],
+ "lvcc-west|sphere":[1.5,32,20,"Tech Express to the Venetian, then the pedestrian bridge"],
+ "lvcc-north|sphere":[1.3,28,20,"Tech Express to the Venetian, then the bridge"],
+ "lvcc-central|sphere":[1.2,25,20,"Tech Express to the Venetian, then the bridge"],
+ "aria|lvcc-west":[3.2,65,40,"Rideshare or taxi. No direct monorail stop at ARIA"],
+ "aria|lvcc-north":[3.0,62,40,"Rideshare or taxi. Monorail is possible via the MGM Grand stop plus a 20 min walk"],
+ "aria|lvcc-central":[2.9,60,40,"Rideshare or taxi"],
+ "fontainebleau|lvcc-west":[0.4,9,null,"Short walk across to West Hall"],
+ "fontainebleau|lvcc-north":[0.9,20,10,"Walk, or Loop from West Hall"],
+ "fontainebleau|lvcc-central":[0.9,19,10,"Walk, or Loop from West Hall"],
+ "venetian|venetian-conf":[0.2,5,null,"Same building"],
+ "sphere|venetian":[0.2,6,null,"Pedestrian bridge from Venetian Expo"],
+ "sphere|venetian-conf":[0.3,8,null,"Pedestrian bridge"],
+ "aria|venetian":[2.0,42,25,"Rideshare or taxi, or a long Strip walk"],
+ "aria|venetian-conf":[2.0,45,27,"Rideshare or taxi"],
+ "aria|sphere":[2.1,45,25,"Rideshare or taxi"],
+ "fontainebleau|venetian":[1.1,24,15,"Walk south on the Strip, or rideshare"],
+ "fontainebleau|venetian-conf":[1.1,27,17,"Walk south on the Strip, or rideshare"],
+ "fontainebleau|sphere":[1.2,26,15,"Walk, or rideshare"],
+ "aria|fontainebleau":[2.9,62,30,"Rideshare or taxi"]
+};
+const dist=(a,b)=>DIST[[a,b].sort().join("|")];
+const band=d=>!d?"self":d[1]<=12?"near":d[1]<=30?"mid":"far";
+function renderDist(){
+  const vs=VENUE_ORDER;
+  let h=`<table><thead><tr><th></th>${vs.map(v=>`<th data-c="${v}">${esc(VENUES[v].name)}</th>`).join("")}</tr></thead><tbody>`;
+  vs.forEach(a=>{h+=`<tr data-r="${a}"><th class="rh">${esc(VENUES[a].name)}</th>`;
+    vs.forEach(b=>{if(a===b){h+=`<td class="self">—</td>`;return}
+      const d=dist(a,b);h+=`<td class="${band(d)}" title="${esc(d[3])}"><span class="mi">${d[0]} mi</span><span class="w">🚶 ${d[1]} min</span><span class="w">${d[2]?`🚌 ~${d[2]} min`:"walk it"}</span></td>`});
+    h+=`</tr>`});
+  h+=`</tbody></table>`;
+  document.getElementById("distMatrix").innerHTML=h;
+  if(state.venue){const r=document.querySelector(`#distMatrix tr[data-r="${state.venue}"]`);if(r)r.classList.add("hl")}
+}
+function lvccMini(active){
+  const halls=[["West Hall","lvcc-west",10,10,120,70,"Vehicle tech, mobility, robotics talks"],["North Hall","lvcc-north",140,10,150,40,"AI, enterprise, IoT, smart cities"],["Central Hall","lvcc-central",140,55,150,25,"Major brands, TV & entertainment"],["South Hall","",300,10,90,70,"Design & Source, accessories"]];
+  let s=`<svg viewBox="0 0 400 115" role="img" aria-label="LVCC halls layout">`;
+  halls.forEach(([n,k,x,y,w,h,d])=>{const on=k===active;
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5" fill="${on?"color-mix(in srgb,var(--accent) 22%,var(--surface))":"var(--surface)"}" stroke="${on?"var(--accent)":"var(--line)"}" stroke-width="${on?2:1.2}"/><text x="${x+6}" y="${y+16}" font-size="11" font-weight="700" fill="var(--ink)">${n}</text>`});
+  s+=`<text x="10" y="100" font-size="10" fill="var(--muted)">West Hall: mobility · North: AI/enterprise · Central: big brands &amp; TV · South: Design &amp; Source</text></svg>`;
+  return s;
+}
+function selectVenue(k){
+  state.venue=k;renderMap();if(document.getElementById("distMatrix").innerHTML)renderDist();
+  const V=VENUES[k],items=S.filter(x=>x.v===k&&state.themes.has(x.th)).sort((a,b)=>a.d-b.d||mins(a.s)-mins(b.s));
+  const ths=[...new Set(S.filter(x=>x.v===k).map(x=>x.th))];
+  const from={LVCC:"Monorail stops at LVCC station. Tech Express shuttle runs to the Venetian. Halls are a 10–15 min walk apart.",Venetian:"Tech Express to LVCC (~25 min with lines). Sphere is next door via the Venetian walkway.","C Space":"South Strip, west side. Allow 45+ min to LVCC by taxi or rideshare during show hours. No monorail stop here.",Fontainebleau:"North Strip, closest to LVCC West Hall (~15 min)."}[V.campus];
+  document.getElementById("venueCard").innerHTML=`<div class="panel" style="padding:12px">
+    <div class="row" style="justify-content:space-between"><h3>${esc(V.name)}</h3><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(V.q)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></div>
+    <div class="muted" style="font-size:.86rem">${esc(V.addr)}</div>
+    <div class="row">${ths.map(t=>`<span class="tag" style="--c:${col(t)}">${esc(THEMES[t].name)}</span>`).join("")}</div>
+    ${V.campus==="LVCC"?lvccMini(k):""}
+    <div style="font-size:.86rem"><strong>Getting there:</strong> ${from}</div>
+    <div style="font-size:.84rem"><strong>From here to:</strong>
+      <ul style="margin:4px 0 0;padding-left:18px;display:grid;gap:3px">${VENUE_ORDER.filter(o=>o!==k).map(o=>{const d=dist(k,o);return `<li><span class="mono">${d[0]} mi · ${d[1]} min walk${d[2]?` · ~${d[2]} min ride`:""}</span> → ${esc(VENUES[o].name)} <span class="muted">(${esc(d[3])})</span></li>`}).join("")}</ul></div>
+    <ul class="planlist">${items.map(x=>`<li style="--c:${col(x.th)};grid-template-columns:1fr auto"><a href="#" data-open="${x.id}">${esc(x.t)}</a><span class="mono muted" style="font-size:.78rem">${DAYS[x.d].slice(0,3)} ${fmt(x.s)}</span></li>`).join("")||'<li class="muted" style="--c:var(--line)">No sessions here for the selected themes.</li>'}</ul></div>`;
+  document.querySelectorAll("#venueCard [data-open]").forEach(a=>a.onclick=e=>{e.preventDefault();const x=S.find(s=>s.id===a.dataset.open);state.day=x.d;if(state.view==="grid")renderAll();showDetail(x.id)});
+}
+
+/* ---------- PLAN + PASS ADVISOR ---------- */
+function renderPlan(){
+  const items=S.filter(x=>state.mine.has(x.id)).sort((a,b)=>a.d-b.d||mins(a.s)-mins(b.s));
+  document.getElementById("planCount").textContent=items.length?`(${items.length})`:"";
+  const ul=document.getElementById("planList");
+  if(!items.length){ul.innerHTML=`<li style="--c:var(--line);grid-template-columns:1fr" class="muted">Nothing starred yet. Open any session and choose “Add to my plan”, or use ☆ in the table view.</li>`}
+  else ul.innerHTML=items.map((x,i)=>{
+    let flag="";
+    items.forEach((y,j)=>{if(j!==i&&y.d===x.d&&mins(y.s)<mins(x.e)&&mins(y.e)>mins(x.s))flag=`<div class="flag bad">Overlaps “${esc(y.t)}”</div>`});
+    const p=items[i-1];
+    if(!flag&&p&&p.d===x.d){const gap=mins(x.s)-mins(p.e),need=travel(VENUES[p.v].campus,VENUES[x.v].campus);
+      if(gap<need&&VENUES[p.v].campus!==VENUES[x.v].campus)flag=`<div class="flag warn">Tight: ${gap} min to get from ${VENUES[p.v].campus} to ${VENUES[x.v].campus} (allow ~${need})</div>`}
+    return `<li style="--c:${col(x.th)}"><span class="mono" style="font-size:.78rem">${DAYS[x.d].slice(0,3)} ${DAYS[x.d].slice(-5)}<br>${fmt(x.s)}</span>
+      <div><a href="#" data-open="${x.id}">${esc(x.t)}</a><div class="muted" style="font-size:.8rem">${esc(VENUES[x.v].name)} · ${accLabel(x.acc)}</div>${flag}</div>
+      <button class="starbtn" aria-pressed="true" data-star="${x.id}" aria-label="Remove from plan">★</button></li>`}).join("");
+  ul.querySelectorAll("[data-star]").forEach(b=>b.onclick=()=>toggleMine(b.dataset.star));
+  ul.querySelectorAll("[data-open]").forEach(a=>a.onclick=e=>{e.preventDefault();const x=S.find(s=>s.id===a.dataset.open);state.day=x.d;renderAll();showDetail(x.id)});
+  renderRec(items);
+}
+function renderRec(items){
+  const prem=items.filter(x=>x.acc==="Premium"),addon=items.filter(x=>x.acc==="Add-on"),ver=items.filter(x=>x.acc==="Verify"),tours=items.filter(x=>x.acc==="Tour");
+  const addTracks=[...new Set(addon.map(x=>x.t.split(/[:·]/)[0].trim()))];
+  let big,why,cost;
+  if(!items.length){big="Standard Pass";why="Star sessions to get a recommendation. Standard covers the floor and all keynotes.";cost="$149 now · $349 from Dec 1"}
+  else if(prem.length){big="Premium Pass";why=`${prem.length} of your sessions are Premium-only${addon.length?`, and Premium also covers your ${addon.length} add-on session${addon.length>1?"s":""}`:""}.`;cost="$1,450 now · $1,750 from Dec 1"}
+  else if(addTracks.length>=3){big="Premium Pass";why=`You picked ${addTracks.length} add-on tracks/tours. CES says Premium is cheaper once you want 3 or more tracks.`;cost="$1,450 now · $1,750 from Dec 1"}
+  else if(addTracks.length){big="Standard + add-ons";why=`Customize: Standard plus ${addTracks.map(esc).join(", ")}. Add-on prices show at checkout; compare against Premium.`;cost="From $149 + add-ons"}
+  else{big="Standard Pass";why="Everything you starred is included in Standard (keynotes and Great Minds).";cost="$149 now · $349 from Dec 1"}
+  document.getElementById("rec").innerHTML=`<div class="rec"><div class="eyebrow">Recommended pass for your plan</div><div class="big">${big}</div><div class="mono">${cost}</div><div style="font-size:.88rem">${why}</div>
+   ${tours.length?`<div class="flag warn">Plus ${tours.length} paid tour${tours.length>1?"s":""}: bought separately from any pass, price not yet published.</div>`:""}
+   ${ver.length?`<div class="flag warn">CES Foundry pass access isn’t published yet. Check it when you register.</div>`:""}
+   <div class="muted" style="font-size:.82rem">Buying before Nov 30 saves $200 on Standard and $300 on Premium.</div></div>`;
+}
+document.getElementById("copyPlan").onclick=async()=>{
+  const items=S.filter(x=>state.mine.has(x.id)).sort((a,b)=>a.d-b.d||mins(a.s)-mins(b.s));
+  const txt="My CES 2027 plan\n"+items.map(x=>`${DAYS[x.d]} ${fmt(x.s)}-${fmt(x.e)} | ${THEMES[x.th].name} | ${x.t} | ${VENUES[x.v].name} (${x.room}) | ${x.acc} | ${x.st}`).join("\n");
+  const m=document.getElementById("copyMsg");
+  try{await navigator.clipboard.writeText(txt);m.textContent="Copied."}catch(e){m.textContent="Copy is blocked here. Use the table view and select the rows instead."}
+};
+document.getElementById("clearPlan").onclick=()=>{document.getElementById("clearConfirm").hidden=false};
+document.getElementById("clearNo").onclick=()=>{document.getElementById("clearConfirm").hidden=true};
+document.getElementById("clearYes").onclick=()=>{state.mine.clear();save();document.getElementById("clearConfirm").hidden=true;renderAll()};
+
+/* ---------- wiring ---------- */
+document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>{state.view=b.dataset.v;document.querySelectorAll("#viewSeg button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderAll()});
+document.getElementById("passSel").onchange=e=>{state.pass=e.target.value;renderAll()};
+document.getElementById("statusSel").onchange=e=>{state.status=e.target.value;renderAll()};
+document.getElementById("q").oninput=e=>{state.q=e.target.value;renderAll()};
+document.getElementById("mineOnly").onclick=e=>{state.mineOnly=!state.mineOnly;e.currentTarget.setAttribute("aria-pressed",state.mineOnly);renderAll()};
+
+function renderAll(){
+  renderChips();renderDaySeg();
+  const g=state.view==="grid";
+  document.getElementById("gridView").hidden=!g;document.getElementById("listView").hidden=g;
+  document.getElementById("schedTitle").textContent=g?`Timetable · ${DAYS[state.day]}`:"All sessions";
+  g?renderGrid():renderList();
+  renderPlan();
+  if(state.venue)selectVenue(state.venue);else renderMap();
+  renderDist();
+}
+// open with a realistic example plan if empty
+if(!state.mine.size){["s0","s1","s2"].forEach(id=>state.mine.add(id))}
+state.venue="lvcc-west";
+renderAll();
+</script>
+</body>
+</html>
