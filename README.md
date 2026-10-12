@@ -2,6 +2,17 @@
 
 An interactive, single-page planner for CES 2027 (Las Vegas, Jan 6–9, 2027). It shows sessions across all 31 CES themes as a color-coded timetable, maps every venue with walking distances, flags schedule conflicts, and recommends which pass to buy.
 
+## Who it's for
+
+- **First-time CES attendees** who want to see the whole show by theme and venue.
+- **People deciding which pass to buy** before early pricing ends Nov 30, 2026.
+- **Product, strategy and BD people** covering several themes in one trip without double-booking.
+- **Anyone splitting time across campuses** who wants to group days by area.
+
+It's less useful for exhibitors working a booth all week, or anyone who only needs the show floor and keynotes.
+
+**Live site:** https://ingridwang24.github.io/ces-2027-planner/
+
 ## Features
 
 - **Timetable view:** sessions by day, laid out by time and venue, colored by theme.
