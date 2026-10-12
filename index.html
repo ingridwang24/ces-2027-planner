@@ -246,7 +246,7 @@ footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
       <div class="panel" style="padding:12px;gap:8px">
         <h3>Add this list to your calendar</h3>
         <div class="row">
-          <button class="btn" id="icsBtn">Download .ics file</button>
+          <button class="btn" id="icsBtn">Save calendar file</button>
           <button class="btn ghost" id="icsCopy">Copy .ics text</button>
         </div>
         <ul style="margin:0;padding-left:18px;font-size:.84rem;display:grid;gap:4px">
@@ -254,7 +254,7 @@ footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
           <li><b>Outlook desktop / Outlook.com:</b> open the .ics file, or Add calendar → Upload from file.</li>
           <li><b>Gmail / Google Calendar:</b> Settings → Import &amp; export → Import, choose the .ics. Or use the Google link on each session.</li>
         </ul>
-        <p class="muted" id="icsMsg" style="margin:0;font-size:.8rem">If the download doesn't start (some embedded viewers block downloads), use “Copy .ics text”, paste into a new text file and save it as <span class="mono">ces-2027.ics</span>. Times are Pacific (Las Vegas).</p>
+        <p class="muted" id="icsMsg" style="margin:0;font-size:.8rem">Times are Pacific (Las Vegas). In the Claude viewer the file saves as <span class="mono">.txt</span>, so rename it to <span class="mono">.ics</span> before importing. On the <a href="https://ingridwang24.github.io/ces-2027-planner/" target="_blank" rel="noopener">GitHub site</a> it downloads as <span class="mono">.ics</span> directly.</p>
       </div>
       <div id="clearConfirm" hidden class="row"><span id="clearQ">Remove every session from this list?</span><button class="btn" id="clearYes">Yes, clear</button><button class="btn ghost" id="clearNo">Keep</button></div>
       <div id="rec"></div>
@@ -552,10 +552,22 @@ function buildIcs(items,name){
      "SUMMARY:"+icsEsc(calTitle(x)),"LOCATION:"+icsEsc(calLoc(x)),"DESCRIPTION:"+icsEsc(calText(x)),"END:VEVENT"]),
    "END:VCALENDAR"].join("\r\n");
 }
-function downloadIcs(items,file,name){
-  const blob=new Blob([buildIcs(items,name)],{type:"text/calendar"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=file;document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+// Inside the Claude artifact viewer, files go through the downloads capability, which
+// does not accept .ics, so the file is saved as .txt there. A plain browser (GitHub Pages) gets a real .ics.
+const IN_ARTIFACT=!!window.claude;
+const SITE_URL="https://ingridwang24.github.io/ces-2027-planner/";
+async function downloadIcs(items,file,name){
+  const data=buildIcs(items,name);
+  if(!IN_ARTIFACT){
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:"text/calendar"}));a.download=file;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+    return {ok:true,msg:`Downloaded ${file}. Open or import it in your calendar app.`};
+  }
+  const dl=await window.claude.use("downloads");
+  if(!dl)return {ok:false,msg:`Saving files isn't available in this viewer. Use “Copy .ics text”, or open ${SITE_URL} to download a real .ics.`};
+  const txt=file.replace(/\.ics$/,".txt");
+  try{await dl.save({filename:txt,data});return {ok:true,msg:`Saved ${txt}. Rename it to end in .ics, then import it. (The GitHub site version downloads .ics directly.)`}}
+  catch(e){return {ok:false,msg:e&&e.code==="declined"?"Save cancelled.":`Couldn't save the file here. Use “Copy .ics text”, or download from ${SITE_URL}.`}}
 }
 const calLinks=x=>`<a href="${gcal(x)}" target="_blank" rel="noopener">Google</a> · <a href="${ocal(x,false)}" target="_blank" rel="noopener">Outlook.com</a> · <a href="${ocal(x,true)}" target="_blank" rel="noopener">Outlook (work/365)</a>`;
 const removeId=id=>{state.mine.delete(id);state.planB.delete(id);save();renderAll();if(state.sel===id)showDetail(id)};
@@ -573,7 +585,7 @@ function showDetail(id){
    <dt>Calendar</dt><dd>${calLinks(x)} · <a href="#" id="dIcs">.ics (Lark, Outlook desktop, Apple)</a></dd></dl>`;
   el.querySelector("#dStar").onclick=()=>setList(id,"A");
   el.querySelector("#dB").onclick=()=>setList(id,"B");
-  el.querySelector("#dIcs").onclick=e=>{e.preventDefault();downloadIcs([x],`ces-2027-${x.id}.ics`,"CES 2027")};
+  el.querySelector("#dIcs").onclick=async e=>{e.preventDefault();const r=await downloadIcs([x],`ces-2027-${x.id}.ics`,"CES 2027");e.target.textContent=r.msg};
   el.querySelector("#dClose").onclick=()=>{el.hidden=true;state.sel=null};
   el.querySelector("#dMap").onclick=e=>{e.preventDefault();selectVenue(x.v);document.getElementById("mapSvg").scrollIntoView({behavior:"smooth",block:"center"})};
   el.scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -748,10 +760,10 @@ document.getElementById("copyPlan").onclick=async()=>{
 };
 const activeList=()=>listItems(state.tab==="A"?state.mine:state.planB);
 const activeName=()=>state.tab==="A"?"CES 2027 – My plan":"CES 2027 – Plan B";
-document.getElementById("icsBtn").onclick=()=>{const it=activeList();const m=document.getElementById("icsMsg");
+document.getElementById("icsBtn").onclick=async()=>{const it=activeList();const m=document.getElementById("icsMsg");
   if(!it.length){m.textContent="This list is empty. Add sessions first.";return}
-  downloadIcs(it,state.tab==="A"?"ces-2027-my-plan.ics":"ces-2027-plan-b.ics",activeName());
-  m.textContent=`Exported ${it.length} session${it.length>1?"s":""} from ${state.tab==="A"?"My plan":"Plan B"}. If no file appeared, use “Copy .ics text”.`};
+  const r=await downloadIcs(it,state.tab==="A"?"ces-2027-my-plan.ics":"ces-2027-plan-b.ics",activeName());
+  m.textContent=(r.ok?`${it.length} session${it.length>1?"s":""} from ${state.tab==="A"?"My plan":"Plan B"}. `:"")+r.msg};
 document.getElementById("icsCopy").onclick=async()=>{const it=activeList();const m=document.getElementById("icsMsg");
   if(!it.length){m.textContent="This list is empty. Add sessions first.";return}
   try{await navigator.clipboard.writeText(buildIcs(it,activeName()));m.textContent="Copied. Paste into a plain text file, save as ces-2027.ics, then import it."}catch(e){m.textContent="Copy is blocked in this viewer. Open the GitHub Pages version to download the file."}};
