@@ -76,7 +76,14 @@ button:focus-visible,select:focus-visible,input:focus-visible,.blk:focus-visible
 .blk .t{font-family:var(--f-mono);font-size:.66rem;color:var(--muted)}
 .blk.proj{border-style:dashed;border-left-style:solid}
 .blk.mine{box-shadow:0 0 0 2px var(--ink)}
+.blk.planb{outline:2px dashed var(--ink);outline-offset:-2px}
+.bbadge{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;border:1.5px dashed currentColor;font-family:var(--f-mono);font-size:.7rem;font-weight:600;line-height:1}
+.pbtn{font:inherit;font-size:.8rem;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
+.pbtn[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.pbtn.b[aria-pressed="true"]{background:color-mix(in srgb,var(--ink) 14%,var(--surface));color:var(--ink);border:1.5px dashed var(--ink)}
+.flag.info{color:var(--muted);font-weight:400}
 .blk .star{position:absolute;top:2px;right:4px;font-size:.8rem}
+.blk .bmark{position:absolute;top:3px;right:4px;font-family:var(--f-mono);font-size:.66rem;font-weight:600;border:1px dashed currentColor;border-radius:3px;padding:0 3px}
 
 /* list */
 .tbl{overflow-x:auto}
@@ -157,7 +164,7 @@ footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
       <div class="eyebrow">What this is</div>
       <h2>Plan CES 2027 before you buy a pass</h2>
       <p>CES spreads 350+ sessions across 12 venues and four days, and the official agenda arrives late. This planner puts every theme on one color-coded timetable, shows where each venue is and how long it takes to get between them, and tells you which pass covers the sessions you pick.</p>
-      <p class="muted" style="font-size:.88rem">Use it in three steps: filter to your themes, star the sessions you want, then read the pass recommendation and fix any red or amber flags in My plan.</p>
+      <p class="muted" style="font-size:.88rem">Use it in three steps: filter to your themes, add your first choices to My plan and backups to Plan B, then compare the pass each plan needs and fix any red or amber flags.</p>
     </div>
     <div style="display:grid;gap:10px">
       <div class="eyebrow">Best for</div>
@@ -195,14 +202,20 @@ footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
         <option value="Confirmed">Confirmed only</option>
       </select>
       <input type="search" id="q" placeholder="Search sessions…" aria-label="Search sessions">
-      <button class="chip" id="mineOnly" aria-pressed="false" style="--c:var(--warn)">★ My plan only</button>
+      <label class="lbl" for="showSel">Show</label>
+      <select id="showSel">
+        <option value="all">All sessions</option>
+        <option value="A">★ My plan</option>
+        <option value="B">Plan B</option>
+        <option value="any">My plan + Plan B</option>
+      </select>
     </div>
   </section>
 
   <section class="panel" aria-label="Schedule">
     <div class="row" style="justify-content:space-between">
       <h2 id="schedTitle">Timetable</h2>
-      <div class="legend"><span>Solid border = confirmed</span><span>Dashed border = projected</span><span>Outlined = starred</span><span>Click a block for details</span></div>
+      <div class="legend"><span>Solid border = confirmed</span><span>Dashed border = projected</span><span>Solid outline ★ = My plan</span><span>Dashed outline B = Plan B</span><span>Click a block for details</span></div>
     </div>
     <div id="gridView"></div>
     <div id="listView" hidden></div>
@@ -218,14 +231,32 @@ footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
     </section>
 
     <section class="panel" aria-label="My plan">
-      <div><div class="eyebrow">Your schedule</div><h2>My plan <span class="mono muted" id="planCount"></span></h2></div>
+      <div><div class="eyebrow">Your shortlists</div><h2>My plan &amp; Plan B</h2></div>
+      <div class="seg" id="planTabs" role="tablist">
+        <button data-p="A" aria-pressed="true">★ My plan <span class="mono" id="cntA"></span></button>
+        <button data-p="B" aria-pressed="false">Plan B <span class="mono" id="cntB"></span></button>
+      </div>
+      <p class="muted" id="planHint" style="margin:0;font-size:.84rem"></p>
       <ul class="planlist" id="planList"></ul>
       <div class="row">
-        <button class="btn ghost" id="copyPlan">Copy plan as text</button>
-        <button class="btn ghost" id="clearPlan">Clear plan</button>
+        <button class="btn ghost" id="copyPlan">Copy both lists as text</button>
+        <button class="btn ghost" id="clearPlan">Clear this list</button>
         <span class="muted" id="copyMsg" style="font-size:.82rem"></span>
       </div>
-      <div id="clearConfirm" hidden class="row"><span>Remove all starred sessions?</span><button class="btn" id="clearYes">Yes, clear</button><button class="btn ghost" id="clearNo">Keep</button></div>
+      <div class="panel" style="padding:12px;gap:8px">
+        <h3>Add this list to your calendar</h3>
+        <div class="row">
+          <button class="btn" id="icsBtn">Download .ics file</button>
+          <button class="btn ghost" id="icsCopy">Copy .ics text</button>
+        </div>
+        <ul style="margin:0;padding-left:18px;font-size:.84rem;display:grid;gap:4px">
+          <li><b>Lark:</b> Calendar → Settings → Import calendar (or <i>Add calendar → Import</i>) and choose the .ics file.</li>
+          <li><b>Outlook desktop / Outlook.com:</b> open the .ics file, or Add calendar → Upload from file.</li>
+          <li><b>Gmail / Google Calendar:</b> Settings → Import &amp; export → Import, choose the .ics. Or use the Google link on each session.</li>
+        </ul>
+        <p class="muted" id="icsMsg" style="margin:0;font-size:.8rem">If the download doesn't start (some embedded viewers block downloads), use “Copy .ics text”, paste into a new text file and save it as <span class="mono">ces-2027.ics</span>. Times are Pacific (Las Vegas).</p>
+      </div>
+      <div id="clearConfirm" hidden class="row"><span id="clearQ">Remove every session from this list?</span><button class="btn" id="clearYes">Yes, clear</button><button class="btn ghost" id="clearNo">Keep</button></div>
       <div id="rec"></div>
     </section>
   </div>
@@ -407,11 +438,12 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const state={
   themes:new Set(store.get("ces27.themes.v2",Object.keys(THEMES))),
-  view:"grid",day:6,pass:"all",status:"all",q:"",mineOnly:false,
+  view:"grid",day:6,pass:"all",status:"all",q:"",show:"all",tab:"A",
   mine:new Set(store.get("ces27.mine",[])),
+  planB:new Set(store.get("ces27.planB",[])),
   sort:{k:"time",dir:1},sel:null,venue:null
 };
-const save=()=>{store.set("ces27.mine",[...state.mine]);store.set("ces27.themes.v2",[...state.themes])};
+const save=()=>{store.set("ces27.mine",[...state.mine]);store.set("ces27.planB",[...state.planB]);store.set("ces27.themes.v2",[...state.themes])};
 
 function filtered(ignoreDay){
   const q=state.q.toLowerCase();
@@ -419,7 +451,7 @@ function filtered(ignoreDay){
     &&(ignoreDay||state.view==="list"||x.d===state.day)
     &&(state.pass==="all"||x.acc===state.pass)
     &&(state.status==="all"||x.st===state.status)
-    &&(!state.mineOnly||state.mine.has(x.id))
+    &&(state.show==="all"||(state.show==="A"&&state.mine.has(x.id))||(state.show==="B"&&state.planB.has(x.id))||(state.show==="any"&&(state.mine.has(x.id)||state.planB.has(x.id))))
     &&(!q||(x.t+" "+x.note+" "+VENUES[x.v].name+" "+THEMES[x.th].name).toLowerCase().includes(q)));
 }
 
@@ -462,8 +494,8 @@ function renderGrid(){
     its.forEach(x=>{
       const top=(mins(x.s)-START)*PX,h=Math.max(28,(mins(x.e)-mins(x.s))*PX-2);
       const w=100/x._n;
-      html+=`<button class="blk ${x.st==="Projected"?"proj":""} ${state.mine.has(x.id)?"mine":""}" data-id="${x.id}" style="--c:${col(x.th)};top:${top}px;height:${h}px;left:calc(${w*x._l}% + 3px);width:calc(${w}% - 6px)" aria-label="${esc(x.t)}, ${fmt(x.s)} to ${fmt(x.e)}">
-        ${state.mine.has(x.id)?'<span class="star" aria-hidden="true">★</span>':""}<div class="t">${fmt(x.s)}–${fmt(x.e)}</div><div>${esc(x.t)}</div></button>`;
+      html+=`<button class="blk ${x.st==="Projected"?"proj":""} ${state.mine.has(x.id)?"mine":""} ${state.planB.has(x.id)?"planb":""}" data-id="${x.id}" style="--c:${col(x.th)};top:${top}px;height:${h}px;left:calc(${w*x._l}% + 3px);width:calc(${w}% - 6px)" aria-label="${esc(x.t)}, ${fmt(x.s)} to ${fmt(x.e)}">
+        ${state.mine.has(x.id)?'<span class="star" aria-hidden="true">★</span>':state.planB.has(x.id)?'<span class="bmark" aria-hidden="true">B</span>':""}<div class="t">${fmt(x.s)}–${fmt(x.e)}</div><div>${esc(x.t)}</div></button>`;
     });
     html+=`</div>`;
   });
@@ -479,9 +511,9 @@ function renderList(){
   const key={time:x=>x.d*10000+mins(x.s),theme:x=>THEMES[x.th].name,title:x=>x.t,venue:x=>VENUES[x.v].name,pass:x=>x.acc,status:x=>x.st};
   items.sort((a,b)=>{const A=key[k](a),B=key[k](b);return (A>B?1:A<B?-1:0)*dir});
   const th=(id,l)=>`<th data-k="${id}" aria-sort="${k===id?(dir>0?"ascending":"descending"):"none"}">${l}${k===id?(dir>0?" ↑":" ↓"):""}</th>`;
-  let html=`<div class="tbl"><table><thead><tr><th>★</th>${th("time","Day / time")}${th("theme","Theme")}${th("title","Session")}${th("venue","Venue · room")}${th("pass","Pass")}${th("status","Status")}</tr></thead><tbody>`;
+  let html=`<div class="tbl"><table><thead><tr><th>Add to</th>${th("time","Day / time")}${th("theme","Theme")}${th("title","Session")}${th("venue","Venue · room")}${th("pass","Pass")}${th("status","Status")}</tr></thead><tbody>`;
   items.forEach(x=>{
-    html+=`<tr data-id="${x.id}"><td><button class="starbtn" data-star="${x.id}" aria-pressed="${state.mine.has(x.id)}" aria-label="Add to my plan">${state.mine.has(x.id)?"★":"☆"}</button></td>
+    html+=`<tr data-id="${x.id}"><td style="white-space:nowrap"><button class="pbtn" data-a="${x.id}" aria-pressed="${state.mine.has(x.id)}" aria-label="My plan">★</button> <button class="pbtn b" data-b="${x.id}" aria-pressed="${state.planB.has(x.id)}" aria-label="Plan B">B</button></td>
     <td class="mono">${DAYS[x.d]}<br>${fmt(x.s)}–${fmt(x.e)}</td>
     <td><span class="tag" style="--c:${col(x.th)}">${esc(THEMES[x.th].name)}</span></td>
     <td><a href="#" data-open="${x.id}">${esc(x.t)}</a></td>
@@ -492,24 +524,56 @@ function renderList(){
   if(!items.length)html+=`<p class="muted">Nothing matches these filters.</p>`;
   const el=document.getElementById("listView");el.innerHTML=html;
   el.querySelectorAll("th[data-k]").forEach(h=>h.onclick=()=>{const kk=h.dataset.k;state.sort=state.sort.k===kk?{k:kk,dir:-state.sort.dir}:{k:kk,dir:1};renderList()});
-  el.querySelectorAll("[data-star]").forEach(b=>b.onclick=()=>toggleMine(b.dataset.star));
+  el.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>setList(b.dataset.a,"A"));
+  el.querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>setList(b.dataset.b,"B"));
   el.querySelectorAll("[data-open]").forEach(a=>a.onclick=e=>{e.preventDefault();showDetail(a.dataset.open)});
 }
 const accLabel=a=>({Standard:"Standard ✓",Premium:"Premium",["Add-on"]:"Add-on / Premium",Tour:"Paid tour (extra)",Verify:"Check at registration"}[a]);
 
-function toggleMine(id){state.mine.has(id)?state.mine.delete(id):state.mine.add(id);save();renderAll();if(state.sel===id)showDetail(id)}
+// a session lives in at most one list; clicking its current list removes it
+function setList(id,list){
+  const [to,other]=list==="A"?[state.mine,state.planB]:[state.planB,state.mine];
+  if(to.has(id))to.delete(id);else{to.add(id);other.delete(id)}
+  save();renderAll();if(state.sel===id)showDetail(id)}
+/* ---------- calendar export ---------- */
+// CES runs on Pacific Standard Time (UTC-8 in January)
+const utc=(d,t)=>{const[h,m]=t.split(":").map(Number);const dt=new Date(Date.UTC(2027,0,d,h+8,m));return dt.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"")};
+const iso=(d,t)=>`2027-01-${String(d).padStart(2,"0")}T${t}:00-08:00`;
+const calText=x=>`${THEMES[x.th].name} · ${x.st==="Projected"?"PROJECTED slot, verify on ces.tech":"Confirmed"} · Pass: ${x.acc}${x.note?" · "+x.note:""}`;
+const calLoc=x=>`${VENUES[x.v].name}, ${x.room} – ${VENUES[x.v].addr}`;
+const calTitle=x=>`CES: ${x.t}`;
+const gcal=x=>`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(calTitle(x))}&dates=${utc(x.d,x.s)}/${utc(x.d,x.e)}&details=${encodeURIComponent(calText(x))}&location=${encodeURIComponent(calLoc(x))}&ctz=America/Los_Angeles`;
+const ocal=(x,work)=>`https://outlook.${work?"office":"live"}.com/calendar/0/action/compose?rru=addevent&subject=${encodeURIComponent(calTitle(x))}&startdt=${encodeURIComponent(iso(x.d,x.s))}&enddt=${encodeURIComponent(iso(x.d,x.e))}&body=${encodeURIComponent(calText(x))}&location=${encodeURIComponent(calLoc(x))}`;
+const icsEsc=t=>String(t).replace(/\\/g,"\\\\").replace(/[,;]/g,m=>"\\"+m).replace(/\n/g,"\\n");
+function buildIcs(items,name){
+  const now=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//CES 2027 Session Planner//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:"+icsEsc(name),
+   ...items.flatMap(x=>["BEGIN:VEVENT",`UID:ces27-${x.id}@ces-2027-planner`,"DTSTAMP:"+now,"DTSTART:"+utc(x.d,x.s),"DTEND:"+utc(x.d,x.e),
+     "SUMMARY:"+icsEsc(calTitle(x)),"LOCATION:"+icsEsc(calLoc(x)),"DESCRIPTION:"+icsEsc(calText(x)),"END:VEVENT"]),
+   "END:VCALENDAR"].join("\r\n");
+}
+function downloadIcs(items,file,name){
+  const blob=new Blob([buildIcs(items,name)],{type:"text/calendar"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=file;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
+const calLinks=x=>`<a href="${gcal(x)}" target="_blank" rel="noopener">Google</a> · <a href="${ocal(x,false)}" target="_blank" rel="noopener">Outlook.com</a> · <a href="${ocal(x,true)}" target="_blank" rel="noopener">Outlook (work/365)</a>`;
+const removeId=id=>{state.mine.delete(id);state.planB.delete(id);save();renderAll();if(state.sel===id)showDetail(id)};
 
 function showDetail(id){
   state.sel=id;const x=S.find(s=>s.id===id),V=VENUES[x.v];
   const el=document.getElementById("detail");el.hidden=false;el.style.setProperty("--c",col(x.th));
   el.innerHTML=`<div class="row" style="justify-content:space-between"><div><span class="tag" style="--c:${col(x.th)}">${esc(THEMES[x.th].name)}</span> <span class="pill ${x.st==="Confirmed"?"conf":"proj"}">${x.st}</span></div>
-   <div class="row"><button class="btn ${state.mine.has(id)?"ghost":""}" id="dStar">${state.mine.has(id)?"Remove from my plan":"★ Add to my plan"}</button><button class="btn ghost" id="dClose">Close</button></div></div>
+   <div class="row"><button class="btn ${state.mine.has(id)?"ghost":""}" id="dStar">${state.mine.has(id)?"Remove from My plan":"★ Add to My plan"}</button><button class="btn ghost" id="dB" style="border-style:${state.planB.has(id)?"solid":"dashed"}">${state.planB.has(id)?"Remove from Plan B":"Add to Plan B"}</button><button class="btn ghost" id="dClose">Close</button></div></div>
    <h3 style="font-size:1.15rem">${esc(x.t)}</h3>
    <dl class="kv"><dt>When</dt><dd class="mono">${DAYS[x.d]} · ${fmt(x.s)}–${fmt(x.e)} PT</dd>
    <dt>Where</dt><dd>${esc(V.name)} · ${esc(x.room)} — <a href="#" id="dMap">show on map</a> · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(V.q)}" target="_blank" rel="noopener">Google Maps</a></dd>
    <dt>Pass</dt><dd>${passText(x.acc)}</dd>
-   ${x.note?`<dt>Notes</dt><dd>${esc(x.note)}</dd>`:""}</dl>`;
-  el.querySelector("#dStar").onclick=()=>toggleMine(id);
+   ${x.note?`<dt>Notes</dt><dd>${esc(x.note)}</dd>`:""}
+   <dt>Calendar</dt><dd>${calLinks(x)} · <a href="#" id="dIcs">.ics (Lark, Outlook desktop, Apple)</a></dd></dl>`;
+  el.querySelector("#dStar").onclick=()=>setList(id,"A");
+  el.querySelector("#dB").onclick=()=>setList(id,"B");
+  el.querySelector("#dIcs").onclick=e=>{e.preventDefault();downloadIcs([x],`ces-2027-${x.id}.ics`,"CES 2027")};
   el.querySelector("#dClose").onclick=()=>{el.hidden=true;state.sel=null};
   el.querySelector("#dMap").onclick=e=>{e.preventDefault();selectVenue(x.v);document.getElementById("mapSvg").scrollIntoView({behavior:"smooth",block:"center"})};
   el.scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -631,25 +695,33 @@ function selectVenue(k){
 }
 
 /* ---------- PLAN + PASS ADVISOR ---------- */
+const listItems=set=>S.filter(x=>set.has(x.id)).sort((a,b)=>a.d-b.d||mins(a.s)-mins(b.s));
+const overlaps=(x,y)=>y.d===x.d&&mins(y.s)<mins(x.e)&&mins(y.e)>mins(x.s);
 function renderPlan(){
-  const items=S.filter(x=>state.mine.has(x.id)).sort((a,b)=>a.d-b.d||mins(a.s)-mins(b.s));
-  document.getElementById("planCount").textContent=items.length?`(${items.length})`:"";
+  const isA=state.tab==="A",items=listItems(isA?state.mine:state.planB),mainItems=listItems(state.mine);
+  document.getElementById("cntA").textContent=`(${state.mine.size})`;
+  document.getElementById("cntB").textContent=`(${state.planB.size})`;
+  document.querySelectorAll("#planTabs button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===state.tab));
+  document.getElementById("planHint").textContent=isA?"Your first choices. Conflict and travel checks run on this list.":"Backups and maybes. Each one shows which My plan session it could replace.";
   const ul=document.getElementById("planList");
-  if(!items.length){ul.innerHTML=`<li style="--c:var(--line);grid-template-columns:1fr" class="muted">Nothing starred yet. Open any session and choose “Add to my plan”, or use ☆ in the table view.</li>`}
+  if(!items.length){ul.innerHTML=`<li style="--c:var(--line);grid-template-columns:1fr" class="muted">${isA?"Nothing here yet. Open any session and choose “★ Add to My plan”, or use ★ in the table view.":"No backups yet. Open any session and choose “Add to Plan B”, or use B in the table view."}</li>`}
   else ul.innerHTML=items.map((x,i)=>{
     let flag="";
-    items.forEach((y,j)=>{if(j!==i&&y.d===x.d&&mins(y.s)<mins(x.e)&&mins(y.e)>mins(x.s))flag=`<div class="flag bad">Overlaps “${esc(y.t)}”</div>`});
+    items.forEach((y,j)=>{if(j!==i&&overlaps(x,y))flag=`<div class="flag bad">Overlaps “${esc(y.t)}”</div>`});
     const p=items[i-1];
     if(!flag&&p&&p.d===x.d){const gap=mins(x.s)-mins(p.e),need=travel(VENUES[p.v].campus,VENUES[x.v].campus);
       if(gap<need&&VENUES[p.v].campus!==VENUES[x.v].campus)flag=`<div class="flag warn">Tight: ${gap} min to get from ${VENUES[p.v].campus} to ${VENUES[x.v].campus} (allow ~${need})</div>`}
+    if(!isA){const alt=mainItems.filter(y=>overlaps(x,y));
+      flag+=alt.length?`<div class="flag info">Alternative to ★ ${alt.map(y=>"“"+esc(y.t)+"”").join(", ")}</div>`:`<div class="flag info">Free slot in My plan. Promote it any time.</div>`}
     return `<li style="--c:${col(x.th)}"><span class="mono" style="font-size:.78rem">${DAYS[x.d].slice(0,3)} ${DAYS[x.d].slice(-5)}<br>${fmt(x.s)}</span>
-      <div><a href="#" data-open="${x.id}">${esc(x.t)}</a><div class="muted" style="font-size:.8rem">${esc(VENUES[x.v].name)} · ${accLabel(x.acc)}</div>${flag}</div>
-      <button class="starbtn" aria-pressed="true" data-star="${x.id}" aria-label="Remove from plan">★</button></li>`}).join("");
-  ul.querySelectorAll("[data-star]").forEach(b=>b.onclick=()=>toggleMine(b.dataset.star));
+      <div><a href="#" data-open="${x.id}">${esc(x.t)}</a><div class="muted" style="font-size:.8rem">${esc(VENUES[x.v].name)} · ${accLabel(x.acc)}</div><div style="font-size:.76rem">📅 ${calLinks(x)}</div>${flag}</div>
+      <span style="display:grid;gap:4px;justify-items:end"><button class="pbtn" data-move="${x.id}">${isA?"Move to Plan B":"★ Move to My plan"}</button><button class="pbtn" data-rm="${x.id}" aria-label="Remove">Remove</button></span></li>`}).join("");
+  ul.querySelectorAll("[data-move]").forEach(b=>b.onclick=()=>setList(b.dataset.move,isA?"B":"A"));
+  ul.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>removeId(b.dataset.rm));
   ul.querySelectorAll("[data-open]").forEach(a=>a.onclick=e=>{e.preventDefault();const x=S.find(s=>s.id===a.dataset.open);state.day=x.d;renderAll();showDetail(x.id)});
-  renderRec(items);
+  renderRec(items,isA?"My plan":"Plan B",listItems(isA?state.planB:state.mine),isA?"Plan B":"My plan");
 }
-function renderRec(items){
+function recFor(items){
   const prem=items.filter(x=>x.acc==="Premium"),addon=items.filter(x=>x.acc==="Add-on"),ver=items.filter(x=>x.acc==="Verify"),tours=items.filter(x=>x.acc==="Tour");
   const addTracks=[...new Set(addon.map(x=>x.t.split(/[:·]/)[0].trim()))];
   let big,why,cost;
@@ -658,27 +730,42 @@ function renderRec(items){
   else if(addTracks.length>=3){big="Premium Pass";why=`You picked ${addTracks.length} add-on tracks/tours. CES says Premium is cheaper once you want 3 or more tracks.`;cost="$1,450 now · $1,750 from Dec 1"}
   else if(addTracks.length){big="Standard + add-ons";why=`Customize: Standard plus ${addTracks.map(esc).join(", ")}. Add-on prices show at checkout; compare against Premium.`;cost="From $149 + add-ons"}
   else{big="Standard Pass";why="Everything you starred is included in Standard (keynotes and Great Minds).";cost="$149 now · $349 from Dec 1"}
-  document.getElementById("rec").innerHTML=`<div class="rec"><div class="eyebrow">Recommended pass for your plan</div><div class="big">${big}</div><div class="mono">${cost}</div><div style="font-size:.88rem">${why}</div>
+  return {big,why,cost,tours,ver};
+}
+function renderRec(items,label,otherItems,otherLabel){
+  const {big,why,cost,tours,ver}=recFor(items),o=recFor(otherItems);
+  document.getElementById("rec").innerHTML=`<div class="rec"><div class="eyebrow">Recommended pass for ${label}</div><div class="big">${big}</div><div class="mono">${cost}</div><div style="font-size:.88rem">${why}</div>
    ${tours.length?`<div class="flag warn">Plus ${tours.length} paid tour${tours.length>1?"s":""}: bought separately from any pass, price not yet published.</div>`:""}
    ${ver.length?`<div class="flag warn">CES Foundry pass access isn’t published yet. Check it when you register.</div>`:""}
+   ${otherItems.length?`<div style="font-size:.84rem">${otherLabel} would need: <strong>${o.big}</strong>${o.big===big?" (same pass)":""}</div>`:""}
    <div class="muted" style="font-size:.82rem">Buying before Nov 30 saves $200 on Standard and $300 on Premium.</div></div>`;
 }
 document.getElementById("copyPlan").onclick=async()=>{
-  const items=S.filter(x=>state.mine.has(x.id)).sort((a,b)=>a.d-b.d||mins(a.s)-mins(b.s));
-  const txt="My CES 2027 plan\n"+items.map(x=>`${DAYS[x.d]} ${fmt(x.s)}-${fmt(x.e)} | ${THEMES[x.th].name} | ${x.t} | ${VENUES[x.v].name} (${x.room}) | ${x.acc} | ${x.st}`).join("\n");
+  const fmtList=(t,its)=>t+"\n"+(its.length?its.map(x=>`${DAYS[x.d]} ${fmt(x.s)}-${fmt(x.e)} | ${THEMES[x.th].name} | ${x.t} | ${VENUES[x.v].name} (${x.room}) | ${x.acc} | ${x.st}`).join("\n"):"(empty)");
+  const txt=fmtList("MY CES 2027 PLAN",listItems(state.mine))+"\n\n"+fmtList("PLAN B",listItems(state.planB));
   const m=document.getElementById("copyMsg");
   try{await navigator.clipboard.writeText(txt);m.textContent="Copied."}catch(e){m.textContent="Copy is blocked here. Use the table view and select the rows instead."}
 };
+const activeList=()=>listItems(state.tab==="A"?state.mine:state.planB);
+const activeName=()=>state.tab==="A"?"CES 2027 – My plan":"CES 2027 – Plan B";
+document.getElementById("icsBtn").onclick=()=>{const it=activeList();const m=document.getElementById("icsMsg");
+  if(!it.length){m.textContent="This list is empty. Add sessions first.";return}
+  downloadIcs(it,state.tab==="A"?"ces-2027-my-plan.ics":"ces-2027-plan-b.ics",activeName());
+  m.textContent=`Exported ${it.length} session${it.length>1?"s":""} from ${state.tab==="A"?"My plan":"Plan B"}. If no file appeared, use “Copy .ics text”.`};
+document.getElementById("icsCopy").onclick=async()=>{const it=activeList();const m=document.getElementById("icsMsg");
+  if(!it.length){m.textContent="This list is empty. Add sessions first.";return}
+  try{await navigator.clipboard.writeText(buildIcs(it,activeName()));m.textContent="Copied. Paste into a plain text file, save as ces-2027.ics, then import it."}catch(e){m.textContent="Copy is blocked in this viewer. Open the GitHub Pages version to download the file."}};
 document.getElementById("clearPlan").onclick=()=>{document.getElementById("clearConfirm").hidden=false};
 document.getElementById("clearNo").onclick=()=>{document.getElementById("clearConfirm").hidden=true};
-document.getElementById("clearYes").onclick=()=>{state.mine.clear();save();document.getElementById("clearConfirm").hidden=true;renderAll()};
+document.getElementById("clearYes").onclick=()=>{(state.tab==="A"?state.mine:state.planB).clear();save();document.getElementById("clearConfirm").hidden=true;renderAll()};
 
 /* ---------- wiring ---------- */
 document.querySelectorAll("#viewSeg button").forEach(b=>b.onclick=()=>{state.view=b.dataset.v;document.querySelectorAll("#viewSeg button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderAll()});
 document.getElementById("passSel").onchange=e=>{state.pass=e.target.value;renderAll()};
 document.getElementById("statusSel").onchange=e=>{state.status=e.target.value;renderAll()};
 document.getElementById("q").oninput=e=>{state.q=e.target.value;renderAll()};
-document.getElementById("mineOnly").onclick=e=>{state.mineOnly=!state.mineOnly;e.currentTarget.setAttribute("aria-pressed",state.mineOnly);renderAll()};
+document.getElementById("showSel").onchange=e=>{state.show=e.target.value;renderAll()};
+document.querySelectorAll("#planTabs button").forEach(b=>b.onclick=()=>{state.tab=b.dataset.p;document.getElementById("clearConfirm").hidden=true;renderPlan()});
 
 function renderAll(){
   renderChips();renderDaySeg();
@@ -691,7 +778,7 @@ function renderAll(){
   renderDist();
 }
 // open with a realistic example plan if empty
-if(!state.mine.size){["s0","s1","s2"].forEach(id=>state.mine.add(id))}
+if(!state.mine.size&&!state.planB.size){["s0","s1","s2"].forEach(id=>state.mine.add(id))}
 state.venue="lvcc-west";
 renderAll();
 </script>
