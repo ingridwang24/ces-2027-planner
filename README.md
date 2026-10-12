@@ -17,7 +17,7 @@ It's less useful for exhibitors working a booth all week, or anyone who only nee
 
 - **Timetable view:** sessions by day, laid out by time and venue, colored by theme.
 - **Table view:** every session in a sortable table.
-- **Filters:** theme (with "My 9 interests" and "All themes" presets), day, pass type, confirmed vs. projected, and text search.
+- **Filters:** theme (drag themes between "My interests" and "Other themes", or use ↑ ↓; groups are remembered), day, pass type, confirmed vs. projected, and text search.
 - **My plan + Plan B:** two shortlists. My plan holds first choices and warns about overlaps and too-tight transfers between campuses. Plan B holds backups and shows which My plan session each one could replace. Move sessions between lists with one click, and copy both lists as text.
 - **Add to calendar:** per-session links for Google Calendar, Outlook.com and Outlook (work/Microsoft 365), plus a downloadable `.ics` file of either list for Lark, Outlook desktop, Apple Calendar or Google import. Times are Pacific.
 - **Pass recommender:** suggests Standard, Standard + add-ons, or Premium for each list, and shows what the other list would need. Prices are the official CES 2027 rates.

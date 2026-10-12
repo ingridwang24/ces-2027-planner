@@ -50,6 +50,15 @@ header.top{display:grid;gap:10px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .chip{--c:var(--muted);font:inherit;font-size:.85rem;display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1.5px solid var(--c);background:transparent;color:var(--ink);cursor:pointer}
 .chip .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.tchip{display:inline-flex;align-items:center;border-radius:999px;cursor:grab}
+.tchip.dragging{opacity:.35}
+.tchip .grip{font-size:.8rem;color:var(--muted);padding:0 2px 0 4px;user-select:none}
+.tchip .mv{font:inherit;font-size:.72rem;border:0;background:none;color:var(--muted);cursor:pointer;padding:2px 4px;border-radius:4px}
+.tchip .mv:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 8%,var(--surface))}
+.tchip.before{box-shadow:-3px 0 0 var(--accent)}
+.zone{border:1.5px dashed transparent;border-radius:10px;padding:6px;min-height:44px;transition:border-color .12s,background .12s}
+.zone.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.zone .empty{font-size:.82rem;color:var(--muted)}
 .chip[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 20%,var(--surface))}
 .chip[aria-pressed="false"]{opacity:.55;border-style:dashed}
 .chip .n{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
@@ -316,7 +325,7 @@ const THEMES = {
   space:{name:"Space Tech",h:225},
   policy:{name:"Innovation Policy & Trade",h:60}
 };
-const MY_THEMES=["keynote","vehicle","hollywood","streaming","retail","robotics","wearables","ai","enterprise"];
+const DEFAULT_MY_THEMES=["keynote","vehicle","hollywood","streaming","retail","robotics","wearables","ai","enterprise"];
 const VENUES = {
   "lvcc-west":{name:"LVCC West Hall",campus:"LVCC",sub:"Mobility",addr:"3150 Paradise Rd, Las Vegas, NV 89109",q:"Las Vegas Convention Center West Hall"},
   "lvcc-north":{name:"LVCC North Hall",campus:"LVCC",sub:"AI, IoT, enterprise",addr:"3150 Paradise Rd, Las Vegas, NV 89109",q:"Las Vegas Convention Center North Hall"},
@@ -441,9 +450,16 @@ const state={
   view:"grid",day:6,pass:"all",status:"all",q:"",show:"all",tab:"A",
   mine:new Set(store.get("ces27.mine",[])),
   planB:new Set(store.get("ces27.planB",[])),
+  myThemes:store.get("ces27.myThemes",null),otherThemes:store.get("ces27.otherThemes",null),
   sort:{k:"time",dir:1},sel:null,venue:null
 };
-const save=()=>{store.set("ces27.mine",[...state.mine]);store.set("ces27.planB",[...state.planB]);store.set("ces27.themes.v2",[...state.themes])};
+// keep the two theme groups valid: every theme in exactly one group
+{const all=Object.keys(THEMES),ok=a=>Array.isArray(a)&&a.every(k=>THEMES[k]);
+ let my=ok(state.myThemes)?state.myThemes:[...DEFAULT_MY_THEMES];
+ let ot=ok(state.otherThemes)?state.otherThemes.filter(k=>!my.includes(k)):[];
+ all.forEach(k=>{if(!my.includes(k)&&!ot.includes(k))ot.push(k)});
+ state.myThemes=[...new Set(my)];state.otherThemes=[...new Set(ot)];}
+const save=()=>{store.set("ces27.mine",[...state.mine]);store.set("ces27.planB",[...state.planB]);store.set("ces27.myThemes",state.myThemes);store.set("ces27.otherThemes",state.otherThemes);store.set("ces27.themes.v2",[...state.themes])};
 
 function filtered(ignoreDay){
   const q=state.q.toLowerCase();
@@ -457,15 +473,39 @@ function filtered(ignoreDay){
 
 function renderChips(){
   const el=document.getElementById("themeChips");
-  const chip=k=>{const n=S.filter(x=>x.th===k).length;return `<button class="chip" style="--c:${col(k)}" data-th="${k}" aria-pressed="${state.themes.has(k)}"><span class="dot"></span>${esc(THEMES[k].name)} <span class="n">${n}</span></button>`};
-  const others=Object.keys(THEMES).filter(k=>!MY_THEMES.includes(k));
-  el.innerHTML=`<div class="row"><span class="lbl">Show</span><button class="chip" id="allTh" aria-pressed="false">All ${Object.keys(THEMES).length} themes</button><button class="chip" id="myTh" aria-pressed="false">My 9 interests</button><button class="chip" id="noneTh" aria-pressed="false">None</button></div>
-   <div class="row"><span class="lbl">My interests</span>${MY_THEMES.map(chip).join("")}</div>
-   <div class="row"><span class="lbl">Other themes</span>${others.map(chip).join("")}</div>`;
+  const my=state.myThemes,others=state.otherThemes;
+  const chip=(k,zone)=>{const n=S.filter(x=>x.th===k).length;
+    return `<span class="tchip" draggable="true" data-k="${k}" title="Drag to move or reorder"><span class="grip" aria-hidden="true">⠿</span><button class="chip" style="--c:${col(k)}" data-th="${k}" aria-pressed="${state.themes.has(k)}"><span class="dot"></span>${esc(THEMES[k].name)} <span class="n">${n}</span></button><button class="mv" data-mv="${k}" aria-label="${zone==="my"?"Move to other themes":"Move to my interests"}" title="${zone==="my"?"Move to Other themes":"Move to My interests"}">${zone==="my"?"↓":"↑"}</button></span>`};
+  el.innerHTML=`<div class="row"><span class="lbl">Show</span><button class="chip" id="allTh" aria-pressed="false">All ${Object.keys(THEMES).length} themes</button><button class="chip" id="myTh" aria-pressed="false">My interests (${my.length})</button><button class="chip" id="noneTh" aria-pressed="false">None</button><span class="muted" style="font-size:.8rem">Drag themes between the two groups, or use ↑ ↓. Click a theme to show or hide it.</span><button class="chip" id="resetTh" aria-pressed="false" style="font-size:.78rem">Reset groups</button></div>
+   <div class="row zone" data-zone="my"><span class="lbl">My interests</span>${my.map(k=>chip(k,"my")).join("")||'<span class="empty">Drop themes here</span>'}</div>
+   <div class="row zone" data-zone="other"><span class="lbl">Other themes</span>${others.map(k=>chip(k,"other")).join("")||'<span class="empty">Drop themes here</span>'}</div>`;
   el.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{const k=b.dataset.th;state.themes.has(k)?state.themes.delete(k):state.themes.add(k);save();renderAll()});
+  el.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{const k=b.dataset.mv;moveTheme(k,my.includes(k)?"other":"my",null)});
   el.querySelector("#allTh").onclick=()=>{state.themes=new Set(Object.keys(THEMES));save();renderAll()};
-  el.querySelector("#myTh").onclick=()=>{state.themes=new Set(MY_THEMES);save();renderAll()};
+  el.querySelector("#myTh").onclick=()=>{state.themes=new Set(state.myThemes);save();renderAll()};
   el.querySelector("#noneTh").onclick=()=>{state.themes=new Set();save();renderAll()};
+  el.querySelector("#resetTh").onclick=()=>{state.myThemes=[...DEFAULT_MY_THEMES];state.otherThemes=Object.keys(THEMES).filter(k=>!DEFAULT_MY_THEMES.includes(k));save();renderAll()};
+  // drag and drop
+  let dragK=null;
+  el.querySelectorAll(".tchip").forEach(t=>{
+    t.addEventListener("dragstart",e=>{dragK=t.dataset.k;t.classList.add("dragging");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",dragK)}catch(_){}});
+    t.addEventListener("dragend",()=>{t.classList.remove("dragging");el.querySelectorAll(".over,.before").forEach(x=>x.classList.remove("over","before"))});
+    t.addEventListener("dragover",e=>{e.preventDefault();el.querySelectorAll(".before").forEach(x=>x.classList.remove("before"));if(t.dataset.k!==dragK)t.classList.add("before")});
+    t.addEventListener("dragleave",()=>t.classList.remove("before"));
+  });
+  el.querySelectorAll(".zone").forEach(z=>{
+    z.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";z.classList.add("over")});
+    z.addEventListener("dragleave",e=>{if(!z.contains(e.relatedTarget))z.classList.remove("over")});
+    z.addEventListener("drop",e=>{e.preventDefault();const k=dragK||e.dataTransfer.getData("text/plain");if(!k||!THEMES[k])return;
+      const tgt=e.target.closest(".tchip");moveTheme(k,z.dataset.zone,tgt&&tgt.dataset.k!==k?tgt.dataset.k:null)});
+  });
+}
+// move theme k into zone ("my"|"other"), before theme `before` (or at the end)
+function moveTheme(k,zone,before){
+  state.myThemes=state.myThemes.filter(x=>x!==k);state.otherThemes=state.otherThemes.filter(x=>x!==k);
+  const list=zone==="my"?state.myThemes:state.otherThemes;
+  const i=before?list.indexOf(before):-1;i<0?list.push(k):list.splice(i,0,k);
+  save();renderAll();
 }
 function renderDaySeg(){
   const el=document.getElementById("daySeg");
