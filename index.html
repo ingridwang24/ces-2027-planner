@@ -200,6 +200,7 @@ footer{font-size:.82rem;color:var(--muted);display:grid;gap:6px}
       <label class="lbl" for="passSel" style="margin-left:8px">Pass</label>
       <select id="passSel">
         <option value="all">Any access</option>
+        <option value="std-pkg">$149 package: Standard + tours</option>
         <option value="Standard">Included in Standard</option>
         <option value="Premium">Premium only</option>
         <option value="Add-on">Add-on track</option>
@@ -338,6 +339,8 @@ const VENUES = {
 };
 const VENUE_ORDER = ["lvcc-west","lvcc-north","lvcc-central","venetian","venetian-conf","sphere","aria","fontainebleau"];
 const DAYS = {6:"Wed Jan 6",7:"Thu Jan 7",8:"Fri Jan 8",9:"Sat Jan 9"};
+// official CES 2027 exhibit hours (ces.tech dates and hours page)
+const FLOOR = {6:"10am–6pm",7:"9am–6pm",8:"9am–6pm",9:"9am–4pm"};
 
 // access: Standard | Premium | Add-on | Verify
 const S = [
@@ -465,7 +468,7 @@ function filtered(ignoreDay){
   const q=state.q.toLowerCase();
   return S.filter(x=>state.themes.has(x.th)
     &&(ignoreDay||state.view==="list"||x.d===state.day)
-    &&(state.pass==="all"||x.acc===state.pass)
+    &&(state.pass==="all"||x.acc===state.pass||(state.pass==="std-pkg"&&(x.acc==="Standard"||x.acc==="Tour"||x.acc==="Verify")))
     &&(state.status==="all"||x.st===state.status)
     &&(state.show==="all"||(state.show==="A"&&state.mine.has(x.id))||(state.show==="B"&&state.planB.has(x.id))||(state.show==="any"&&(state.mine.has(x.id)||state.planB.has(x.id))))
     &&(!q||(x.t+" "+x.note+" "+VENUES[x.v].name+" "+THEMES[x.th].name).toLowerCase().includes(q)));
@@ -823,7 +826,7 @@ function renderAll(){
   renderChips();renderDaySeg();
   const g=state.view==="grid";
   document.getElementById("gridView").hidden=!g;document.getElementById("listView").hidden=g;
-  document.getElementById("schedTitle").textContent=g?`Timetable · ${DAYS[state.day]}`:"All sessions";
+  document.getElementById("schedTitle").textContent=g?`Timetable · ${DAYS[state.day]} · show floor open ${FLOOR[state.day]}`:"All sessions";
   g?renderGrid():renderList();
   renderPlan();
   if(state.venue)selectVenue(state.venue);else renderMap();
